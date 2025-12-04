@@ -6,7 +6,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.0.3"
+#define FIRMWARE_VERSION "0.0.1"
 /**                          Load the libraries and settings
 ***************************************************************************************/
 #include <Arduino.h>
@@ -33,9 +33,9 @@ TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprTime = TFT_eSprite(&tft);
 TFT_eSprite sprJson = TFT_eSprite(&tft); 
 boolean booted = true;
-bool newLoraData = false;
+bool newLoRaData = false;
 bool newBlynkData = false;
-bool GetData = false;
+bool GetWeatherData = false;
 bool GetMoonPhase = false;
 bool hourlyReset = false;
 bool dailyReset = false;
@@ -46,13 +46,13 @@ long last_GRAPH = millis();
 /***************************************************************************************
 **                          Declare prototypes
 ***************************************************************************************/
-void updateData();
+void updateWeatherData();
 void updateAstronomy();
 void drawProgress(uint8_t percentage, String text);
 void drawTime();
 void updateBlynk();
 void enterLightSleep();
-void loraE220();
+void GetLoRa();
 void drawTemHumIndoor();
 void drawTemHumOutdoor();
 void drawAngle();
@@ -216,7 +216,7 @@ unsigned long currentMillis = 0;
 unsigned long drawTFT = 0;
 unsigned long uploadBlynk = 0;
 unsigned long connectMillis = 0;
-unsigned long loraE220Millis = 0;
+unsigned long LoRaMillis = 0;
 unsigned long millisSyncTime = 0;
 unsigned long lastCheckTime = 0;
 //  Graph
@@ -380,7 +380,7 @@ void setup() {
   tft.fillRect(0, 200, 800, 400, TFT_BLACK);
 // Chú ý: mấy lần trước sử dụng TOKEN giả khỏi nó đăng nhập Blynk. ai ngờ là nguyên nhân gây ra treo hệ thống lúc khởi động
 //      nó cứ đứng ở đoạn đang kết nối WIFI hoài không chịu đi tiếp
-//        và lúc đã vào được giao diện chính thì phần hiển thị thời gian cập nhật ban đầu sẽ là 7:00 cho updateData và updeDataMoon
+//        và lúc đã vào được giao diện chính thì phần hiển thị thời gian cập nhật ban đầu sẽ là 7:00 cho updateWeatherData và updeDataMoon
 //  Blynk.begin(BLYNK_AUTH_TOKEN, WIFI_SSID, WIFI_PASSWORD);
   Blynk.config(authKey);
   tft.setTextDatum(BC_DATUM);
@@ -463,16 +463,16 @@ void loop() {
   int m = minute(local_time);
   int s = second(local_time);
   //  loraE220();
-//  if ((currentMillis > 25000) && (currentMillis - loraE220Millis >= 10)) {
-  if (currentMillis - loraE220Millis >= 50) {
-    loraE220Millis = currentMillis;
-    loraE220(h, m, s);
+//  if ((currentMillis > 25000) && (currentMillis - LoRaMillis >= 10)) {
+  if (currentMillis - LoRaMillis >= 50) {
+    LoRaMillis = currentMillis;
+    GetLoRa(h, m, s);
   }
-  if (newLoraData) {// && currentMillis - drawTFT >= 3000) {
+  if (newLoRaData) {// && currentMillis - drawTFT >= 3000) {
     drawTFT = currentMillis;
     drawData(h, m, s);
     newBlynkData = true;
-    newLoraData = false;
+    newLoRaData = false;
   }
   if (newBlynkData) {// && currentMillis - uploadBlynk >=3000) {
     uploadBlynk = currentMillis;
@@ -480,14 +480,14 @@ void loop() {
     newBlynkData = false;
   }
 // Check if we should update weather information
-  if (booted || ((m == 0 || m == 30) && s > 5 && !GetData)) {
-    updateData(h, m);
+  if (booted || ((m == 0 || m == 30) && s > 5 && !GetWeatherData)) {
+    updateWeatherData(h, m);
   }
   if (m != 0 && m != 30) {
-    GetData = false;
+    GetWeatherData = false;
   }
   if (booted || (h == 0 && m == 0 && !GetMoonPhase)) {
-    updateAstronomy();
+    updateAstronomy(local_time);
   }
   if (h != 0) {
     GetMoonPhase = false;
@@ -496,10 +496,10 @@ void loop() {
   if (booted || minute() != lastMinute)
   {
     // Update displayed time first as we may have to wait for a response
-    drawTime();
+    drawTime(local_time);
     lastMinute = minute();
   }
-  if (booted || currentMillis - millisSyncTime >=60000) {
+  if (booted || currentMillis - millisSyncTime >= 60000) {
     millisSyncTime = currentMillis;
     // Request and synchronise the local clock
     syncTime();   
@@ -584,15 +584,6 @@ void checkFirmwareUpdate() {
         int written = 0;
         int lastPercent = -1;
 
-        // Kích thước thanh progress bar
-      /*  int barX = 0;
-        int barY = 260;
-        int barWidth = 240;
-        int barHeight = 12;
-
-        // Khung viền của thanh tiến trình
-        tft.drawRect(barX, barY, barWidth, barHeight, TFT_DARKGREY);
-      */
         while (https.connected() && (written < len || len == -1)) {
           size_t sizeAvailable = stream->available();
           if (sizeAvailable) {
@@ -600,15 +591,12 @@ void checkFirmwareUpdate() {
           Update.write(buff, c);
           written += c;
 
-          // Tính phần trăm tiến trình
           int percent = (len > 0) ? (written * 100 / len) : 0;
           if (percent != lastPercent) {
             lastPercent = percent;
             //Serial.printf("Progress: %d%%\r", percent);
-       //     tft.drawString("Updating... " + String(percent) + "%", 0, 255);
             drawProgress(percent, String(percent) + "%");
       //      int filledWidth = map(percent, 0, 100, 0, barWidth);
-      //      tft.fillRect(barX + 1, barY + 1, filledWidth - 2, barHeight - 2, TFT_GREEN);
             }
           }
           delay(1);
@@ -658,7 +646,7 @@ void checkFirmwareUpdate() {
   tft.unloadFont();
 }
 
-void loraE220(int h, int m, int s) {   
+void GetLoRa(int h, int m, int s) {   
   if (e220ttl.available() > 1) {
     tft.loadFont(AA_FONT_10, LittleFS);
     tft.setTextDatum(TL_DATUM);
@@ -702,7 +690,7 @@ void loraE220(int h, int m, int s) {
     mmGraph += RainGauge;
     mmHourly += RainGauge;
 
-    newLoraData = true;
+    newLoRaData = true;
     tft.fillRect(644, 40, 28, 11, TFT_BLACK);    
   }
 }
@@ -1301,11 +1289,9 @@ void updateBlynk() {
 /***************************************************************************************
 **                          Draw the clock digits
 ***************************************************************************************/
-void drawTime() {
+void drawTime(time_t local_time) {
   sprTime.fillSprite(TFT_BLACK);
   sprTime.loadFont(AA_FONT_70, LittleFS);
-  // Convert UTC to local time, returns zone code in tz1_Code, e.g "GMT"
-  time_t local_time = TIMEZONE.toLocal(now(), &tz1_Code);
   String timeNow = "";
   if (hour(local_time) < 10) timeNow += "0";
   timeNow += hour(local_time);
@@ -1367,7 +1353,7 @@ else
 **                          Fetch the weather data  and update screen
 ***************************************************************************************/
 // Update the Internet based information and update screen
-void updateData(int h, int m) {
+void updateWeatherData(int h, int m) {
   if (booted) drawProgress(50, "Update conditions...");
   currentWeather = new CurrentWeather();
   HTTPClient http;
@@ -1441,7 +1427,7 @@ void updateData(int h, int m) {
     tft.fillScreen(TFT_BLACK);    
     return;
   }
-  GetData = true;
+  GetWeatherData = true;
   if (booted)
   {
     drawProgress(100, "Done...");
@@ -1562,7 +1548,7 @@ void drawCurrentWeather(int h, int m) {
 }
 
 
-void updateAstronomy() {
+void updateAstronomy(time_t local_time) {
   dailyWeather = new DailyWeather();
   HTTPClient http;
   // DailyWeather Get JSON
@@ -1609,7 +1595,7 @@ void updateAstronomy() {
     return;
   }
   GetMoonPhase = true;
-  drawAstronomy();
+  drawAstronomy(local_time);
   tft.unloadFont();
   delete dailyWeather;
 }
@@ -1617,9 +1603,7 @@ void updateAstronomy() {
 /***************************************************************************************
 **                          Draw Sun rise/set, Moon, cloud cover and humidity
 ***************************************************************************************/
-void drawAstronomy() {
-
-  time_t local_time = TIMEZONE.toLocal(now(), &tz1_Code);
+void drawAstronomy(time_t local_time) {
   int d = day(local_time);
   int m = month(local_time);
   int y = year(local_time);
