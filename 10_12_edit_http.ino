@@ -6,7 +6,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.0.2"
+#define FIRMWARE_VERSION "0.0.1"
 /**                          Load the libraries and settings
 ***************************************************************************************/
 #include <Arduino.h>
@@ -436,7 +436,7 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
   tft.loadFont(AA_FONT_10, LittleFS);
   tft.setTextDatum(BR_DATUM);  
-  tft.drawString(String(FIRMWARE_VERSION), 343, 10);
+  tft.drawString(String(FIRMWARE_VERSION), 363, 10);
   tft.unloadFont(); 
   booted = true;
 }
