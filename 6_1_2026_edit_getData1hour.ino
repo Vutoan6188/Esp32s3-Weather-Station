@@ -44,7 +44,8 @@ bool dailyReset = false;
 WiFiManager wifiManager;
 GfxUi ui = GfxUi(&tft); // Jpeg and bmpDraw functions TODO: pull outside of a class
 long lastDownloadUpdate = millis();
-long last_GRAPH = millis();
+//long last_GRAPH = millis();
+static int last_GRAPH = -1;
 /***************************************************************************************
 **                          Declare prototypes
 ***************************************************************************************/
@@ -219,7 +220,7 @@ unsigned long connectMillis = 0;
 unsigned long LoRaMillis = 0;
 unsigned long lastCheckPower = 0;
 //  Graph
-const int UPDATE_GRAPH_SECS = 6 * 60UL;    //6 * 60UL;  // 60UL = 1minute => 6 minute
+//const int UPDATE_GRAPH_SECS = 6 * 60UL;    //6 * 60UL;  // 60UL = 1minute => 6 minute
 // Toạ độ tâm vòng tròn và bán kính
 #define CENTER_X 540
 #define CENTER_Y 82
@@ -331,6 +332,31 @@ void setup() {
   tft.setTextDatum(BL_DATUM); // Bottom Centre datum
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
 
+  spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (!SD.begin(SD_CS, spiSD)) {
+    //Serial.println("❌ SD init failed");
+    tft.drawString("SD init failed", 0, 80);
+  } else {
+    //Serial.println("✅ SD ready");
+    tft.drawString("SD ready", 0, 80);
+    // 👉 Chỉ tạo file + header nếu chưa có
+    if (!SD.exists("/weather_log.csv")) {
+      File f = SD.open("/weather_log.csv", FILE_WRITE);
+      f.println(
+        "DateTime,"
+        "TempOutMax,TempOutMin,TempOut,"
+        "TempInMax,TempInMin,TempIn,"
+        "HumOutMax,HumOutMin,HumOut,"
+        "HumInMax,HumInMin,HumIn,"
+        "WindSpeed,WindGustHour,WindDirection,"
+        "Rain,RainHour,RainDay,Solar_V"
+      );
+      f.close();
+      //Serial.println("📄 Created weather_log.csv + header");
+      tft.drawString("---->>>> Created file: weather_log.csv + header", 70, 80);
+    }
+  }
+
   tft.drawString("Connecting to WiFi SSID: " + WiFi.SSID(), 0, 100);
   checkFirmwareUpdate();
   // Lưu thông số mới vào EEPROM
@@ -342,36 +368,16 @@ void setup() {
   EEPROM.put(40, apiKey);
   EEPROM.put(88, authKey);
   EEPROM.commit();
-  tft.loadFont(AA_FONT_SMALL, LittleFS);
-  tft.setTextDatum(BL_DATUM); // Bottom Centre datum
-  tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.drawString("Location: " + String(locationKey), 0, 370);
-  tft.drawString("Api Key: " + String(apiKey), 0, 390);
-  tft.drawString("Blynk Auth Token: " + String(authKey), 0, 410);
+
+  tft.drawString("Location: " + String(locationKey), 0, 200);
+  tft.drawString("Api Key: " + String(apiKey), 0, 220);
+  tft.drawString("Blynk Auth Token: " + String(authKey), 0, 240);
   //Serial.print("Location Key: ");
   //Serial.println(locationKey);
   //Serial.print("API Key: ");
   //Serial.println(apiKey);
   //Serial.print("Auth Key: ");
   //Serial.println(authKey);
-
-  spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-
-  if (!SD.begin(SD_CS, spiSD)) {
-    //Serial.println("❌ SD init failed");
-    tft.drawString("SD init failed", 0, 60);
-  } else {
-    //Serial.println("✅ SD ready");
-    tft.drawString("SD ready", 0, 60);
-    // 👉 Chỉ tạo file + header nếu chưa có
-    if (!SD.exists("/weather_log.csv")) {
-      File f = SD.open("/weather_log.csv", FILE_WRITE);
-      f.println("Date_Time,Wind_Gust/h,Rain_Daily,TempOut,HumiOut,TempIn,HumiIn,Direct");
-      f.close();
-      //Serial.println("📄 Created weather_log.csv + header");
-      tft.drawString("Created weather_log.csv + header", 0, 80);
-    }
-  }
 
   Wire.begin(6,7);
   //bme.begin(0x76); 
@@ -745,7 +751,6 @@ void checkFirmwareUpdate() {
     delay(2000);
   }
   http.end();
-  tft.unloadFont();
 }
 
 void GetLoRa() {   
@@ -798,6 +803,8 @@ void GetLoRa() {
 }
 
 void drawData(time_t local_time) {
+  int m = minute(local_time);
+  int s = second(local_time); 
   if (currentMillis > 30000)  {
     drawAngle();
     drawWindSpeed();
@@ -832,8 +839,10 @@ void drawData(time_t local_time) {
   tft.setTextPadding(0);
   tft.unloadFont();
 
-  if (millis() - last_GRAPH > 1000UL * UPDATE_GRAPH_SECS ) {
-    last_GRAPH = millis();
+//  if (millis() - last_GRAPH > 1000UL * UPDATE_GRAPH_SECS ) {
+//    last_GRAPH = millis();
+  if ((m % 6 == 0 && s > 29) && (m != last_GRAPH)) {
+    last_GRAPH = m;
     tft.loadFont(AA_FONT_10, LittleFS);
     GraphWindRain();
     GraphTemp();
@@ -1337,25 +1346,32 @@ void updateBlynk() {
 
 void saveData(time_t local_time) {
   tft.loadFont(AA_FONT_10, LittleFS);
-  tft.setTextDatum(TL_DATUM);  
+  tft.setTextDatum(TL_DATUM); 
   if (!sdReady) {
+    SD.end();               // 🔥 reset SD stack
+    spiSD.end();            // 🔥 reset SPI
+    delay(50);
+
+    spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
     sdReady = SD.begin(SD_CS, spiSD);
     if (!sdReady) {
       //Serial.println("⚠️ SD missing → skip");
-      tft.setTextColor(TFT_RED, TFT_BLACK);
-      tft.drawString("SD", 592, 10);
+      tft.setTextColor(TFT_BLACK, TFT_RED);
+      tft.drawString(" SD ", 584, 10);
       return;
     }
     //Serial.println("🔁 SD mounted");
-    tft.setTextColor(TFT_GREEN, TFT_BLACK);
-    tft.drawString("SD", 592, 10);
+    tft.setTextColor(TFT_BLACK, TFT_GREEN);
+    tft.drawString(" SD ", 584, 10);
   }
 
   File f = SD.open("/weather_log.csv", FILE_APPEND);
   if (!f) {
     //Serial.println("❌ File open fail → mark SD lost");
-    tft.setTextColor(TFT_RED, TFT_BLACK);
-    tft.drawString("SD", 592, 10);
+    tft.setTextColor(TFT_BLACK, TFT_YELLOW);
+    tft.drawString(" SD ", 584, 10);
+    SD.end();
+    spiSD.end();
     sdReady = false;      // lần sau sẽ thử mount lại
     return;
   }
@@ -1368,16 +1384,23 @@ void saveData(time_t local_time) {
           hour(local_time),
           minute(local_time));
 
-  f.printf("%s,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n",
-           datetime,
-           maxWindHour,
-           mmDaily,
-           TempOutDoor,
-           HumiOutDoor,
-           TempInDoor,
-           HumiInDoor,
-           winddy
-           );
+  f.printf(
+  "%s,"
+  "%.2f,%.2f,%.2f,"
+  "%.2f,%.2f,%.2f,"
+  "%.2f,%.2f,%.2f,"
+  "%.2f,%.2f,%.2f,"
+  "%.2f,%.2f,%.2f,"
+  "%.2f,%.2f,%.2f,"
+  "%.2f\n",
+  datetime,
+	maxTempOutDoor,minTempOutDoor,TempOutDoor,
+	maxTempInDoor,minTempInDoor,TempInDoor,
+	maxHumiOutDoor,minHumiOutDoor,HumiOutDoor,
+	maxHumiInDoor,minHumiInDoor,HumiInDoor,
+	fWindSpeed,maxWindHour,winddy,
+	mmTotal,mmHourly,mmDaily,fvalueSol
+  );
   f.close();
   logCount++;
   tft.setTextDatum(TR_DATUM);    
