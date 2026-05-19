@@ -6,7 +6,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.0.7"
+#define FIRMWARE_VERSION "0.1.0"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
@@ -96,7 +96,8 @@ void GraphTemp();
 void GraphHum();
 void drawCurrentWeather();
 void checkButton();
-void saveData();
+void saveSDData();
+void readSDData();
 const char* getMeteoconIcon(const char* weatherIcon, int Cloudcover, int isday);  // Tối ưu: Đổi String sang const char*
 void drawAstronomy();
 void fillSegment(int x, int y, int start_angle, int sub_angle, int r, unsigned int colour);
@@ -181,6 +182,10 @@ float Pressure, Altitude;
 ***************************************************************************************/
 float graphWindSpeed, graphWindMax, graphWinddy, graphRain;
 float graphHumOUT, graphTemOUT, graphHumIN, graphTemIN;
+
+// Khai báo 2 mảng lưu lịch sử 24 giờ (từ 0h đến 23h)
+float history_TempOut[24] = {0.0};
+float history_RainDaily[24] = {0.0};
 
 // CẢNH BÁO: Mảng đồ thị của ca tiêu tốn khá nhiều RAM (800 int = 1.6KB/mảng)
 // Tổng cộng: 14 mảng x 800 int = Hơn 22KB RAM chỉ dành cho đồ thị!
@@ -852,9 +857,6 @@ void checkButton() {
         char targetFile[32];
         snprintf(targetFile, sizeof(targetFile), "/log_%04d_%02d.csv", year(c_time), month(c_time));
 
-        // 3. Gọi hàm quét thẻ SD và tự động kích hoạt hàm vẽ đồ thị ngày hôm nay!
-        loadAndDrawSDGraph(targetFile, year(c_time), month(c_time), day(c_time));
-
       } else {
         currentPage = 0;
         Serial.println("Quay về: MÀN HÌNH CHÍNH");
@@ -967,7 +969,7 @@ void drawData(time_t local_time) {
     GraphWindRain();
     GraphTemp();
     GraphHum();
-    saveData(local_time);
+    saveSDData(local_time);
     tft.setTextPadding(0);
     tft.unloadFont();
   }
@@ -1568,7 +1570,7 @@ void updateBlynk() {
 }
 
 
-void saveData(time_t local_time) {
+void saveSDData(time_t local_time) {
   tft.loadFont(AA_FONT_10, LittleFS);
   tft.setTextDatum(TL_DATUM);
   tft.setTextPadding(tft.textWidth(" SD "));
@@ -1650,6 +1652,94 @@ void saveData(time_t local_time) {
   tft.unloadFont();
   tft.setTextPadding(0);  // Reset padding an toàn
 }
+
+
+// Hàm đọc file log từ thẻ SD và bóc tách dữ liệu lịch sử 24 giờ
+void readSDData(time_t local_time) {
+  // 1. Tạo đường dẫn file theo ngày hiện tại (Ví dụ: /2026/05/19.txt)
+  char fileName[32];
+  sprintf(fileName, "/%04d/%02d/%02d.txt", year(local_time), month(local_time), day(local_time));
+  
+  Serial.print("--- ĐANG ĐỌC LỊCH SỬ TỪ THẺ SD: ");
+  Serial.println(fileName);
+
+  // 2. Khởi tạo lại 2 mảng về 0.0 trước khi nạp dữ liệu mới
+  for (int i = 0; i < 24; i++) {
+    history_TempOut[i] = 0.0;
+    history_RainDaily[i] = 0.0;
+  }
+
+  // 3. Mở file trên thẻ SD
+  File dataFile = SD.open(fileName, FILE_READ);
+  if (!dataFile) {
+    Serial.println("❌ Lỗi: Không tìm thấy file log ngày hôm nay trên thẻ SD!");
+    return; // Thoát nếu không có file
+  }
+
+  // 4. Đọc từng dòng trong file cho đến hết
+  while (dataFile.available()) {
+    String line = dataFile.readStringUntil('\n');
+    line.trim(); // Xóa các ký tự xuống dòng thừa (\r, \n)
+    
+    if (line.length() == 0) continue; // Dòng trống thì bỏ qua
+
+    // Khởi tạo các biến để bóc tách chuỗi CSV
+    int commaIndex = 0;
+    int columnCount = 0;
+    String timeStr = "";
+    float tempOutVal = 0.0;
+    float rainDailyVal = 0.0;
+
+    // Vòng lặp cắt chuỗi theo dấu phẩy ','
+    while (line.length() > 0) {
+      commaIndex = line.indexOf(',');
+      String field = "";
+      
+      if (commaIndex != -1) {
+        field = line.substring(0, commaIndex);
+        line = line.substring(commaIndex + 1); // Cắt bỏ phần đã xử lý
+      } else {
+        field = line; // Trường cuối cùng trong dòng
+        line = "";
+      }
+      field.trim();
+
+      // Bóc tách dữ liệu theo số thứ tự cột (Bắt đầu từ cột 0)
+      if (columnCount == 0) {
+        // Cột 0: Ngày tháng giờ giấc (Ví dụ: "2026/05/19 13:00")
+        timeStr = field;
+      }
+      else if (columnCount == 1) {
+        // Cột 1: Nhiệt độ ngoài trời (TempOut)
+        tempOutVal = field.toFloat();
+      }
+      else if (columnCount == 15) {
+        // Cột 12: Lượng mưa ngày (RainDaily) - Ca kiểm tra lại xem đúng số thứ tự cột trong file log của ca không nha
+        rainDailyVal = field.toFloat();
+      }
+
+      columnCount++;
+      if (commaIndex == -1) break; // Hết dòng thì dừng vòng cắt chuỗi
+    }
+
+    // 5. Xác định mốc giờ để nhét vào đúng vị trí trong mảng (0 - 23)
+    // Chuỗi timeStr có dạng "2026/05/19 13:00" -> Giờ nằm ở ký tự thứ 11 và 12
+    if (timeStr.length() >= 16) {
+      int hourIndex = timeStr.substring(11, 13).toInt(); // Trích xuất ra số 13
+      
+      if (hourIndex >= 0 && hourIndex < 24) {
+        history_TempOut[hourIndex] = tempOutVal;     // Nạp vào mảng nhiệt độ đúng vị trí giờ
+        history_RainDaily[hourIndex] = rainDailyVal; // Nạp vào mảng lượng mưa đúng vị trí giờ
+        
+        Serial.printf("-> Đã nạp [%02dh:00] TempOut: %.1f°C | Rain: %.1fmm\n", hourIndex, tempOutVal, rainDailyVal);
+      }
+    }
+  }
+
+  dataFile.close(); // Đóng file sau khi đọc xong
+  Serial.println("✔️ ĐÃ ĐỌC VÀ PHÂN TÍCH FILE SD THÀNH CÔNG!");
+}
+
 
 /***************************************************************************************
 **                          Draw the clock digits
