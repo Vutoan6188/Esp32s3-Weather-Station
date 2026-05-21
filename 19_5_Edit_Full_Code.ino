@@ -75,10 +75,10 @@ WiFiClientSecure client;
 /***************************************************************************************
 **                          Declare prototypes
 ***************************************************************************************/
-void updateWeatherData();
-void updateAstronomy();
+void updateWeatherData(time_t local_time);
+void updateAstronomy(time_t local_time);
 void drawProgress(uint8_t percentage, const char* text);  // Tối ưu: Đổi String text sang const char*
-void drawTime();
+void drawTime(time_t local_time);
 void updateBlynk();
 void enterLightSleep();
 void GetLoRa();
@@ -90,17 +90,17 @@ void drawRain();
 void drawSignal();
 void ResetValue();
 void connectWiFi();
-void drawData();
+void drawData(time_t local_time);
 void drawGraphThrough();
 void GraphWindRain();
 void GraphTemp();
 void GraphHum();
-void drawCurrentWeather();
-void checkButton();
-void saveSDData();
-void readSDData();
+void drawCurrentWeather(time_t local_time);
+void checkButton(time_t local_time);
+void saveSDData(time_t local_time);
+void readSDData(time_t local_time);
 const char* getMeteoconIcon(const char* weatherIcon, int Cloudcover, int isday);  // Tối ưu: Đổi String sang const char*
-void drawAstronomy();
+void drawAstronomy(time_t local_time);
 void fillSegment(int x, int y, int start_angle, int sub_angle, int r, unsigned int colour);
 
 // Tối ưu: Đổi String sang const char* trong các hàm xử lý chuỗi
@@ -186,7 +186,7 @@ float graphHumOUT, graphTemOUT, graphHumIN, graphTemIN;
 
 // Khai báo 2 mảng lưu lịch sử 24 giờ (từ 0h đến 23h)
 float history_TempOut[24] = { 0.0 };
-float history_RainDaily[24] = { 0.0 };
+float history_WindSpeed[24] = { 0.0 };
 
 // CẢNH BÁO: Mảng đồ thị của ca tiêu tốn khá nhiều RAM (800 int = 1.6KB/mảng)
 // Tổng cộng: 14 mảng x 800 int = Hơn 22KB RAM chỉ dành cho đồ thị!
@@ -574,7 +574,7 @@ void loop() {
   }
 
   // 2. Liên tục check nút bấm để đảo trang (0 <-> 1)
-  checkButton();
+  checkButton(local_time);
 
   // 3. Quét dữ liệu LoRa từ trạm cảm biến ngoại vi (Mỗi 50ms)
   if (currentMillis - LoRaMillis >= 50) {
@@ -617,7 +617,7 @@ void loop() {
 
   // 8. Cập nhật Weather API đầu mỗi giờ ngầm (Phút 00, giây > 5)
   if (booted || (m == 0 && s > 5 && !GetWeatherData)) {
-    updateWeatherData(h, m);
+    updateWeatherData(local_time);
     GetWeatherData = true;
   }
   if (m != 0) GetWeatherData = false;
@@ -841,7 +841,7 @@ void checkFirmwareUpdate() {
 }
 
 
-void checkButton() {
+void checkButton(time_t local_time) {
   if (digitalRead(BUTTON_PIN) == LOW) {
     delay(50);
 
@@ -853,8 +853,7 @@ void checkButton() {
         currentPage = 1;
         Serial.println("Chuyển sang: MÀN HÌNH LỊCH SỬ SD");
 
-        time_t c_time = TIMEZONE.toLocal(now(), &tz1_Code);
-        readSDData(c_time);  // Gọi hàm đọc phiên bản mới không bao giờ treo
+        readSDData(local_time);
 
       } else {
         currentPage = 0;
@@ -961,26 +960,24 @@ void drawData(time_t local_time) {
   if ((m % 6 == 0 && s > 29) && (m != last_GRAPH)) {
     last_GRAPH = m;
 
-    // Bước 1: Khóa màn hình và tiến hành lưu file vào thẻ SD trước
-    isSavingSD = true;
-    delay(5);
-
-    saveSDData(local_time);  // Ghi file (Cuối hàm này có digitalWrite(SD_CS, HIGH) và tft.init())
-
-    delay(5);
-    isSavingSD = false;  // Ghi xong, nhả khóa ra cho màn hình hoạt động
-    booted = true;       // Ép màn hình chính vẽ lại toàn bộ từ đầu
-
-    // Bước 2: Lúc này bus SPI đã sạch và an toàn, tiến hành nạp font và vẽ đồ thị
     tft.loadFont(AA_FONT_10, LittleFS);
     GraphWindRain();
     GraphTemp();
     GraphHum();
 
+    isSavingSD = true;
+    delay(5);
+
+    saveSDData(local_time);
+
+    delay(5);
+    isSavingSD = false;
+    booted = true;
+
     tft.setTextPadding(0);
-    tft.unloadFont();  // Vẽ đồ thị xong giải phóng bộ nhớ font ngay
+    tft.unloadFont();
   }
-}  // Ngoặc đóng của hàm drawData
+}
 
 
 void drawAngle() {
@@ -1594,7 +1591,6 @@ void saveSDData(time_t local_time) {
       tft.setTextColor(TFT_BLACK, TFT_RED);
       tft.drawString(" SD ", 690, 50);
       tft.unloadFont();  // Phải giải phóng font trước khi thoát
-      tft.setTextPadding(0);
       return;
     }
     tft.setTextColor(TFT_BLACK, TFT_GREEN);
@@ -1611,7 +1607,6 @@ void saveSDData(time_t local_time) {
     tft.setTextColor(TFT_BLACK, TFT_YELLOW);
     tft.drawString(" SD ", 690, 50);
     tft.unloadFont();
-    tft.setTextPadding(0);
     SD.end();
     spiSD.end();
     sdReady = false;
@@ -1659,19 +1654,14 @@ void saveSDData(time_t local_time) {
 
   tft.unloadFont();
   tft.setTextPadding(0);
-
-  // 🔥 ĐƯA 3 DÒNG CẤP CỨU XUỐNG DƯỚI CÙNG ĐỂ CHỐT HẠ AN TOÀN
-  digitalWrite(SD_CS, HIGH);
-  delay(10);
-  tft.init();
 }
 
 
 void readSDData(time_t local_time) {
   // --- CHUẨN BỊ MÀN HÌNH ĐỂ IN CHỮ MẶC ĐỊNH ---
-  tft.setTextSize(1);           // Ép về Font số 1 nhỏ nhất của thư viện (rất nét)
-  tft.setTextColor(TFT_GREEN, TFT_BLACK); // Chữ xanh lá trên nền đen nhìn như màn hình hacker ca nhé
-  tft.setCursor(10, 10);        // Đặt con trỏ ở góc trên bên trái màn hình
+  tft.setTextSize(1);                      // Ép về Font số 1 nhỏ nhất của thư viện (rất nét)
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);  // Chữ xanh lá trên nền đen nhìn như màn hình hacker ca nhé
+  tft.setCursor(10, 10);                   // Đặt con trỏ ở góc trên bên trái màn hình
   tft.println("--- DANG QUET DU LIEU LICH SU TU THE SD ---");
 
   // 1. TỰ ĐỘNG PHỤC HỒI PHẦN CỨNG SD
@@ -1686,9 +1676,9 @@ void readSDData(time_t local_time) {
     if (!sdReady) {
       tft.setTextColor(TFT_RED, TFT_BLACK);
       tft.println("ERROR: Phuc hoi phan cung SD THAT BAI!");
-      digitalWrite(SD_CS, HIGH); 
+      digitalWrite(SD_CS, HIGH);
       return;
-    } 
+    }
     tft.println("SUCCESS: Phuc hoi ket noi SD OK!");
   }
 
@@ -1702,7 +1692,7 @@ void readSDData(time_t local_time) {
   // Khởi tạo lại mảng về 0
   for (int i = 0; i < 24; i++) {
     history_TempOut[i] = 0.0;
-    history_RainDaily[i] = 0.0;
+    history_WindSpeed[i] = 0.0;
   }
 
   // 3. MỞ FILE VỚI ĐƯỜNG TRUYỀN ĐÃ ĐƯỢC ĐẢM BẢO
@@ -1710,7 +1700,7 @@ void readSDData(time_t local_time) {
   if (!dataFile) {
     tft.setTextColor(TFT_YELLOW, TFT_BLACK);
     tft.println("ERROR: Khong mo duoc file log!");
-    digitalWrite(SD_CS, HIGH); 
+    digitalWrite(SD_CS, HIGH);
     return;
   }
 
@@ -1764,13 +1754,13 @@ void readSDData(time_t local_time) {
       if (fDay == targetDay) {
         if (fHour >= 0 && fHour < 24) {
           history_TempOut[fHour] = tempOutVal;
-          history_RainDaily[fHour] = rainDailyVal;
+          history_WindSpeed[fHour] = windSpeed;
           loadedCount++;
 
           // 📺 IN TRỰC TIẾP DÒNG KHỚP LÊN MÀN HÌNH TFT Cho Ca Xem:
-          tft.printf("[%02d] %02dh:%02dm -> T:%.1fC | R:%.1fmm\n", 
-                     totalLines, fHour, fMinute, tempOutVal, rainDailyVal);
-          
+          tft.printf("[%02d] %02dh:%02dm -> TempOut:%.1fC | Speed:%.1fkm/h\n",
+                     totalLines, fHour, fMinute, tempOutVal, windSpeed);
+
           // Giới hạn màn hình: Nếu chữ dài quá tràn cạnh dưới màn hình thì dừng in vẽ để tránh lỗi font
           if (tft.getCursorY() > 760) {
             tft.setCursor(10, 760);
@@ -1789,9 +1779,8 @@ void readSDData(time_t local_time) {
   tft.printf("DONE: Doc %d dong. Loc duoc %d moc gio!\n", totalLines, loadedCount);
 
   // 🔥 3 DÒNG CẤP CỨU CHỐT HẠ SAU KHI ĐỌC XONG FILE
-  digitalWrite(SD_CS, HIGH);  
-  delay(10);                  
-  tft.init();                 
+  digitalWrite(SD_CS, HIGH);
+  delay(10);
 }
 
 
@@ -1849,7 +1838,9 @@ void drawTime(time_t local_time) {
 **                          Fetch the weather data  and update screen
 ***************************************************************************************/
 // Update the Internet based information and update screen
-void updateWeatherData(int h, int m) {
+void updateWeatherData(time_t local_time) {
+  int h = hour(local_time);
+  int m = minute(local_time);
   HTTPClient http;
   String url1h = "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/";
   url1h += locationKey;
@@ -1905,14 +1896,16 @@ void updateWeatherData(int h, int m) {
 
     // Gọi hàm vẽ, bên trong hàm này ca nhớ sửa các biến
     // thành weatherData.temperature thay vì currentWeather->temperature nhé
-    drawCurrentWeather(h, m);
+    drawCurrentWeather(local_time);
   }
 }
 
 /***************************************************************************************
 **                          Draw the current weather
 ***************************************************************************************/
-void drawCurrentWeather(int h, int m) {
+void drawCurrentWeather(time_t local_time) {
+  int h = hour(local_time);
+  int m = minute(local_time);
   // Mảng đệm ký tự tĩnh dùng chung cho toàn hàm, cực nhẹ
   char buf[32];
 
