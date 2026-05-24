@@ -1983,10 +1983,10 @@ void readSDData(time_t local_time) {
                "(%.1f/%.1f) | "
                "H.O %.0f%% | "
                "H.I %.0f%% | "
-               "Wind %.1f "
-               "Gust%.1f | "
-               "Rain %.1f | "
-               "Solar %.1f",
+               "Wind %.2f "
+               "Gust%.2f | "
+               "Rain %.2f | "
+               "Solar %.2f",
 
                fHour,
                fMinute,
