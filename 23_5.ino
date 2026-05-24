@@ -91,7 +91,6 @@ void drawSignal();
 void ResetValue();
 void connectWiFi();
 void drawData(time_t local_time);
-void drawGraphThrough();
 void GraphWindRain();
 void GraphTemp();
 void GraphHum();
