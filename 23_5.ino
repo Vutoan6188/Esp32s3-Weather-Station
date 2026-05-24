@@ -1815,7 +1815,7 @@ void readSDData(time_t local_time) {
 
   if (!sdReady) {
 
-    tft.println("Dang reset SD...");
+    tft.println("eset SD...");
 
     SD.end();
     spiSD.end();
@@ -1983,7 +1983,7 @@ void readSDData(time_t local_time) {
                "(%.1f/%.1f) | "
                "H.O %.0f%% | "
                "H.I %.0f%% | "
-               "Wind %.2f "
+               "Wind %.2f | "
                "Gust%.2f | "
                "Rain %.2f | "
                "Solar %.2f",
