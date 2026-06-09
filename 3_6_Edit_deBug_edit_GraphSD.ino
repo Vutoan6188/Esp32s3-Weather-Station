@@ -584,7 +584,7 @@ void drawInterfaceSkeleton() {
 void debugMemoryTFT(int baseY) {
   tft.setTextDatum(TR_DATUM);
   tft.setTextPadding(tft.textWidth("60000+"));
-  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.setTextColor(TFT_RED, TFT_BLACK);
 
   // =========================
   // HEAP
