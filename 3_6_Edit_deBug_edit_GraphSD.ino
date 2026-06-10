@@ -1,4 +1,3 @@
-// Edit unloadFont() on Company 8/6/26
 #define AA_FONT_SMALL "fonts/NotoSansBold15"
 #define AA_FONT_LARGE "fonts/NotoSansBold36"
 #define AA_FONT_10 "fonts/NotoSans-Bold10"
@@ -7,7 +6,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.1.7"
+#define FIRMWARE_VERSION "0.1.6"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
@@ -575,16 +574,19 @@ void drawInterfaceSkeleton() {
   tft.setTextPadding(tft.textWidth("km/h"));
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString("km/h", CENTER_X, CENTER_Y + 50);
+  tft.unloadFont();
 
   tft.setTextPadding(0);
-  tft.unloadFont();
 }
 
 
 void debugMemoryTFT(int baseY) {
+
+  tft.loadFont(AA_FONT_10, LittleFS);
+
   tft.setTextDatum(TR_DATUM);
   tft.setTextPadding(tft.textWidth("60000+"));
-  tft.setTextColor(TFT_RED, TFT_BLACK);
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
 
   // =========================
   // HEAP
@@ -915,7 +917,6 @@ void checkButton(time_t local_time) {
           GraphTemp();
           GraphHum();
           debugMemoryTFT(40);
-
           tft.setTextPadding(0);
           tft.unloadFont();
         } else {
@@ -925,7 +926,6 @@ void checkButton(time_t local_time) {
           GraphWindRainSD();
           GraphTempSD();
           GraphHumSD();
-
           tft.setTextPadding(0);
           tft.unloadFont();
         }
@@ -945,7 +945,6 @@ void checkButton(time_t local_time) {
       GraphWindRain();
       GraphTemp();
       GraphHum();
-
       tft.unloadFont();
       tft.setTextPadding(0);
     }
@@ -1020,6 +1019,8 @@ void drawData(time_t local_time) {
   }
   drawTemHumOutdoor();
   drawTemHumIndoor();
+  tft.setTextPadding(0);
+  tft.unloadFont();
 }
 
 
@@ -1065,7 +1066,6 @@ void drawAngle() {
   snprintf(windBuf, sizeof(windBuf), "%.0f°", winddy);
   tft.drawString(windBuf, CENTER_X, CENTER_Y - 30);
 
-  tft.setTextPadding(0);
   tft.unloadFont();
 }
 
@@ -1087,9 +1087,9 @@ void drawWindSpeed() {
 
   snprintf(windBuf, sizeof(windBuf), "%.1f max/h ", maxWindHour);
   tft.drawString(windBuf, CENTER_X, CENTER_Y + 30);
+  tft.unloadFont();
 
   tft.setTextPadding(0);
-  tft.unloadFont();
 }
 
 
@@ -1118,8 +1118,8 @@ void drawRain() {
   snprintf(rainBuf, sizeof(rainBuf), "%.2fmm", mmTotal);
   tft.drawString(rainBuf, 566, 146);
 
-  tft.setTextPadding(0);
   tft.unloadFont();
+  tft.setTextPadding(0);
 
   tft.fillRect(520, 63, 30, 100, 0x4228);
   tft.fillRect(520, 163 - (int)mmGraph, 30, (int)mmGraph, 0x07FF);
@@ -1207,8 +1207,8 @@ void drawSignal() {
   snprintf(sigBuf, sizeof(sigBuf), "%.0fs", fTimeConnect);
   tft.drawString(sigBuf, 800, 80);
 
-  tft.setTextPadding(0);
   tft.unloadFont();
+  tft.setTextPadding(0);
 }
 
 
@@ -1255,8 +1255,8 @@ void drawTemHumOutdoor() {
   snprintf(thBuf, sizeof(thBuf), "%.1f", minHumiOutDoor);
   tft.drawString(thBuf, 585, 234);
 
-  tft.setTextPadding(0);
   tft.unloadFont();
+  tft.setTextPadding(0);
 }
 
 
@@ -1313,8 +1313,8 @@ void drawTemHumIndoor() {
   snprintf(inBuf, sizeof(inBuf), "%.1fm", Altitude);
   tft.drawString(inBuf, 542, 41);
 
-  tft.setTextPadding(0);
   tft.unloadFont();
+  tft.setTextPadding(0);
 }
 
 /*
@@ -1616,6 +1616,7 @@ void saveSDData(time_t local_time) {
     if (!sdReady) {
       tft.setTextColor(TFT_BLACK, TFT_RED);
       tft.drawString(" SD ", 690, 70);
+      tft.unloadFont();
       return;
     }
     tft.setTextColor(TFT_BLACK, TFT_GREEN);
@@ -1648,6 +1649,7 @@ void saveSDData(time_t local_time) {
   if (!f) {
     tft.setTextColor(TFT_BLACK, TFT_YELLOW);
     tft.drawString(" SD ", 690, 70);
+    tft.unloadFont();
     SD.end();
     spiSD.end();
     sdReady = false;
@@ -1693,8 +1695,7 @@ void saveSDData(time_t local_time) {
   tft.setTextPadding(tft.textWidth("9999"));
   tft.drawString(logBuf, 712, 70);
 
-  debugMemoryTFT(currentPage == 0 ? 40 : 0);
-
+  debugMemoryTFT(40);
 }
 
 
@@ -2290,9 +2291,9 @@ void updateWeatherData(time_t local_time) {
   bool validData = false;
   int retry = 0;
 
-  while (!validData && retry < 2) {
-    http.setConnectTimeout(2000);
-    http.setTimeout(2000);
+  while (!validData && retry < 3) {
+    http.setConnectTimeout(4000);
+    http.setTimeout(4000);
     http.begin(url1h);
 
     int httpResponseCode = http.GET();
@@ -2323,6 +2324,7 @@ void updateWeatherData(time_t local_time) {
     http.end();
     if (validData) break;
     retry++;
+    delay(500);
   }
 
   if (validData) {
@@ -2358,9 +2360,9 @@ void drawCurrentWeather(time_t local_time) {
   snprintf(buf, sizeof(buf), "/icon/%s.bmp", weathertest.c_str());
   ui.drawBmp(buf, 0, 63);
 
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.loadFont(AA_FONT_SMALL, LittleFS);
   tft.setTextDatum(TC_DATUM);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
   // Cloudcover
   snprintf(buf, sizeof(buf), "%d%%", weatherData.Cloudcover);
@@ -2407,14 +2409,10 @@ void drawCurrentWeather(time_t local_time) {
 
   snprintf(buf, sizeof(buf), "%d%%", weatherData.humidity);
   tft.drawString(buf, 322, 228);
-  tft.unloadFont();
-  
-  // 
-  tft.loadFont(AA_FONT_10, LittleFS);
   debugMemoryTFT(40);
+  tft.unloadFont();
 
   tft.setTextPadding(0);
-  tft.unloadFont();
 }
 
 
@@ -2428,9 +2426,9 @@ void updateAstronomy(time_t local_time) {
   bool validData = false;
   int retry = 0;
 
-  while (!validData && retry < 2) {
-    http.setConnectTimeout(2000);
-    http.setTimeout(2000);
+  while (!validData && retry < 3) {
+    http.setConnectTimeout(4000);
+    http.setTimeout(4000);
     http.begin(url1d);
 
     int httpResponseCode = http.GET();
@@ -2458,12 +2456,15 @@ void updateAstronomy(time_t local_time) {
     http.end();
     if (validData) break;
     retry++;
+    delay(500);
   }
 
   if (validData) {
     GetAstronomy = true;
 
     drawAstronomy(local_time);
+
+    tft.unloadFont();
   }
 }
 
@@ -2514,8 +2515,8 @@ void drawAstronomy(time_t local_time) {
   String moonset24 = convertTo24HourFormat(moonsetRaw);
   tft.drawString(moonset24.c_str(), 219, 248);
 
-  tft.setTextPadding(0);
   tft.unloadFont();
+  tft.setTextPadding(0);
 }
 
 
