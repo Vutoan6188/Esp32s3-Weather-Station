@@ -7,7 +7,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.1.8"
+#define FIRMWARE_VERSION "0.1.7"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
@@ -2294,9 +2294,9 @@ void updateWeatherData(time_t local_time) {
   bool validData = false;
   int retry = 0;
 
-  while (!validData && retry < 2) {
-    http.setConnectTimeout(2000);
-    http.setTimeout(2000);
+  while (!validData && retry < 3) {
+    http.setConnectTimeout(4000);
+    http.setTimeout(4000);
     http.begin(url1h);
 
     int httpResponseCode = http.GET();
@@ -2327,6 +2327,7 @@ void updateWeatherData(time_t local_time) {
     http.end();
     if (validData) break;
     retry++;
+    delay(500);
   }
 
   if (validData) {
@@ -2432,9 +2433,9 @@ void updateAstronomy(time_t local_time) {
   bool validData = false;
   int retry = 0;
 
-  while (!validData && retry < 2) {
-    http.setConnectTimeout(2000);
-    http.setTimeout(2000);
+  while (!validData && retry < 3) {
+    http.setConnectTimeout(4000);
+    http.setTimeout(4000);
     http.begin(url1d);
 
     int httpResponseCode = http.GET();
@@ -2462,6 +2463,7 @@ void updateAstronomy(time_t local_time) {
     http.end();
     if (validData) break;
     retry++;
+    delay(500);
   }
 
   if (validData) {
