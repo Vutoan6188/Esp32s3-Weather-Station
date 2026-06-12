@@ -1,4 +1,4 @@
-// Edit ResetValue() on Company 11/6/26
+// fix syncDone... 12/6
 #define AA_FONT_SMALL "fonts/NotoSansBold15"
 #define AA_FONT_LARGE "fonts/NotoSansBold36"
 #define AA_FONT_10 "fonts/NotoSans-Bold10"
@@ -7,7 +7,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.1.7"
+#define FIRMWARE_VERSION "0.1.8"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
@@ -637,11 +637,15 @@ void loop() {
   int s = second(local_time);
   currentMillis = millis();
 
+  // Cache status
+  bool isAwake = digitalRead(SLEEP_PIN) == HIGH;
+  bool wifiOK = WiFi.status() == WL_CONNECTED;
+
   // CheckButton
   checkButton(local_time);
 
   // SaveSDData && UpdateData for Graph && drawGraph
-  if ((m % 6 == 0 && s >= 1) && (m != last_WriteSD)) {
+  if (m % 6 == 0 && s >= 1 && m != last_WriteSD) {
     last_WriteSD = m;
     tft.loadFont(AA_FONT_10, LittleFS);
     saveSDData(local_time);
@@ -663,22 +667,19 @@ void loop() {
   // Check Power for LightSleep
   if (currentMillis - lastCheckPower >= 1000) {
     lastCheckPower = currentMillis;
-    if (digitalRead(SLEEP_PIN) == LOW) {
-      enterLightSleep();
-    }
+    if (!isAwake) enterLightSleep();
   }
 
   // Check WiFi connect()
-  if ((currentMillis - connectMillis >= 600000) && (WiFi.status() != WL_CONNECTED)) {
+  if (!wifiOK && currentMillis - connectMillis >= 600000) {
     connectMillis = currentMillis;
     WiFi.disconnect();
     WiFi.reconnect();
   }
 
   // Check Power for Blynk.run()
-  if (digitalRead(SLEEP_PIN) == HIGH && WiFi.status() == WL_CONNECTED) {
-    Blynk.run();
-  }
+  if (isAwake && wifiOK) Blynk.run();
+
   static unsigned long lastCheckBlynk = 0;
   if (currentMillis - lastCheckBlynk >= 2000) {
     lastCheckBlynk = currentMillis;
@@ -702,6 +703,7 @@ void loop() {
     LoRaMillis = currentMillis;
     GetLoRa();
   }
+  // drawData
   if (newLoRaData) {
     if (currentPage == 0) {
       drawData(local_time);
@@ -737,11 +739,10 @@ void loop() {
 
   // syncTime //
   if (booted || ((m == 15 || m == 45) && s >= 3 && !syncDone)) {
-
     syncTime();
     syncDone = true;
   }
-  if (s >= 10) syncDone = false;
+  if (m != 15 && m != 45) syncDone = false;
 
   booted = false;
 }
