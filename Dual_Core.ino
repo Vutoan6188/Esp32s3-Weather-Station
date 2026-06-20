@@ -1,6 +1,8 @@
 // Dual_core demo 13/6.2026
 // Mid night edit auto dim without drawTime - in loop()
-// Edit json for API updateWeatherData && updateAstronomyData 18/6 
+// Edit json for API updateWeatherData && updateAstronomyData 18/6
+// Edit bar for Ram 19/6 23:21
+// check Jump time
 #define AA_FONT_SMALL "fonts/NotoSansBold15"
 #define AA_FONT_LARGE "fonts/NotoSansBold36"
 #define AA_FONT_10 "fonts/NotoSans-Bold10"
@@ -9,7 +11,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.2.2"
+#define FIRMWARE_VERSION "0.2.3"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
@@ -42,6 +44,9 @@
 #include "LoRa_E220.h"
 //debugMemory
 #include "esp_heap_caps.h"
+//Esp32_temp
+#include "driver/temperature_sensor.h"
+temperature_sensor_handle_t temp_handle = NULL;
 /***************************************************************************************
 **                          Define the globals and class instances
 ***************************************************************************************/
@@ -56,6 +61,10 @@ volatile bool firstAstronomyRun = true;
 int lastWeatherHour = -1;
 int lastWeatherMinute = -1;
 int lastAstronomyDay = -1;
+
+// check JumpTimeError //
+volatile bool timeJumpDetected = false;
+char timeJumpMsg[32] = "";
 
 bool syncDone = false;
 bool newLoRaData = false;
@@ -347,6 +356,24 @@ void WeatherTask(void* pvParameters) {
 /***************************************************************************************
 **                          Setup
 ***************************************************************************************/
+void initESPTemp() {
+  temperature_sensor_config_t temp_sensor =
+    TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 80);
+
+  ESP_ERROR_CHECK(
+    temperature_sensor_install(
+      &temp_sensor,
+      &temp_handle));
+
+  ESP_ERROR_CHECK(
+    temperature_sensor_enable(
+      temp_handle));
+}
+
+
+/***************************************************************************************
+**                          Setup
+***************************************************************************************/
 void setup() {
   //  Serial.begin(115200);
 
@@ -572,6 +599,10 @@ void setup() {
 
   drawInterfaceSkeleton();
 
+  //Esp32_temp //
+  initESPTemp();
+
+  // DualCore //
   xTaskCreatePinnedToCore(
     WeatherTask,
     "WeatherTask",
@@ -686,6 +717,19 @@ void drawInterfaceSkeleton() {
 }
 
 
+float getESPTemp() {
+  float temp = 0;
+  if (temperature_sensor_get_celsius(
+        temp_handle,
+        &temp)
+      == ESP_OK) {
+
+    return temp;
+  }
+  return -99;
+}
+
+
 void debugMemoryTFT(int baseY) {
   tft.setTextDatum(TR_DATUM);
   tft.setTextPadding(tft.textWidth("60000+"));
@@ -700,9 +744,20 @@ void debugMemoryTFT(int baseY) {
 
   uint32_t largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 
-  int barHeap = map(constrain(freeHeap, 40000, 120000), 40000, 120000, 0, 50);
-  int barMin = map(constrain(minHeap, 20000, 120000), 20000, 120000, 0, 50);
-  int barBlock = map(constrain(largestBlock, 10000, 80000), 10000, 80000, 0, 50);
+  int barHeap = map(
+    constrain(freeHeap, 50000, 100000),
+    50000, 100000,
+    0, 50);
+
+  int barMin = map(
+    constrain(minHeap, 15000, 40000),
+    15000, 40000,
+    0, 50);
+
+  int barBlock = map(
+    constrain(largestBlock, 10000, 50000),
+    10000, 50000,
+    0, 50);
   // =========================
   // PRINT TFT
   // =========================
@@ -744,13 +799,30 @@ void debugMemoryTFT(int baseY) {
     tft.drawString(buf, 748, baseY + 30);
 
     int barStack = map(
-      constrain(stackRemain, 2000, 30000),
-      2000, 30000,
+      constrain(stackRemain, 5000, 25000),
+      5000, 25000,
       0, 50);
 
     tft.fillRect(750, baseY + 30, 50, 8, 0x4228);
     tft.fillRect(750, baseY + 30, barStack, 8, TFT_RED);
   }
+
+  // check JumpTimeError //
+  if (timeJumpDetected) {
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextPadding(tft.textWidth("99:99 D:-99999"));
+
+    tft.drawString(timeJumpMsg, 800, baseY + 40);
+  }
+  // Esp32_Temp //
+  snprintf(
+    buf,
+    sizeof(buf),
+    "%.1fC",
+    getESPTemp());
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.setTextPadding(tft.textWidth("88.8.C"));
+  tft.drawString(buf, 748, baseY + 40);
 }
 
 
@@ -759,6 +831,32 @@ void debugMemoryTFT(int baseY) {
 ***************************************************************************************/
 void loop() {
   time_t local_time = TIMEZONE.toLocal(now(), &tz1_Code);
+
+  //  check JumpTimeError //
+  static time_t prevTime = 0;
+
+  if (prevTime != 0) {
+
+    long diff = local_time - prevTime;
+
+    // Nhảy quá 60 giây mới coi là bất thường
+    if (abs(diff) > 60) {
+
+      snprintf(timeJumpMsg,
+               sizeof(timeJumpMsg),
+               "%02d:%02d D:%ld",
+               hour(local_time),
+               minute(local_time),
+               diff);
+
+      timeJumpDetected = true;
+    }
+  }
+
+  prevTime = local_time;
+  //////////////////////////
+
+
   int h = hour(local_time);
   int m = minute(local_time);
   int s = second(local_time);
@@ -1085,6 +1183,7 @@ void checkButton(time_t local_time) {
           readHistoryFromSD(local_time);
           tft.loadFont(AA_FONT_10, LittleFS);
           debugMemoryTFT(0);
+          tft.fillScreen(0x08A5);
           GraphWindRainSD();
           GraphTempSD();
           GraphHumSD();
@@ -1208,7 +1307,7 @@ void drawAngle() {
   tft.setTextPadding(tft.textWidth("8888"));
 
   char windBuf[16];
-  snprintf(windBuf, sizeof(windBuf), "%.0f°", winddy);
+  snprintf(windBuf, sizeof(windBuf), "%.0fÂ°", winddy);
   tft.drawString(windBuf, CENTER_X, CENTER_Y - 30);
 
   tft.setTextPadding(0);
@@ -1369,9 +1468,9 @@ void drawTemHumOutdoor() {
   tft.loadFont(AA_FONT_40, LittleFS);
   tft.setTextDatum(TL_DATUM);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setTextPadding(tft.textWidth("88.88°"));
+  tft.setTextPadding(tft.textWidth("88.88Â°"));
 
-  snprintf(thBuf, sizeof(thBuf), "%.2f°", TempOutDoor);
+  snprintf(thBuf, sizeof(thBuf), "%.2fÂ°", TempOutDoor);
   tft.drawString(thBuf, 455, 186);
   tft.unloadFont();
 
@@ -1416,10 +1515,10 @@ void drawTemHumIndoor() {
 
   tft.loadFont(AA_FONT_40, LittleFS);
   tft.setTextDatum(TL_DATUM);
-  tft.setTextPadding(tft.textWidth("88.88°"));
+  tft.setTextPadding(tft.textWidth("88.88Â°"));
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
-  snprintf(inBuf, sizeof(inBuf), "%.2f°", TempInDoor);
+  snprintf(inBuf, sizeof(inBuf), "%.2fÂ°", TempInDoor);
   tft.drawString(inBuf, 637, 186);
   tft.unloadFont();
 
@@ -1468,6 +1567,7 @@ void drawTemHumIndoor() {
 COLOR CODE ~~~ https://www.computerhope.com/htmcolor.htm
 #define BLACK 0x0000
 #define NAVY 0x000F
+Dark Navy #0A1428 ≈ 0x08A5 (RGB565)
 #define DARKGREEN 0x03E0
 #define DARKCYAN 0x03EF
 #define MAROON 0x7800
@@ -1574,7 +1674,7 @@ void updateGraphHum() {
 
 
 void GraphWindRain() {
-  tft.fillRect(0, 250, 800, 100, TFT_BLACK);
+  tft.fillRect(0, 250, 800, 100, 0x08A5);
   //  Graph Line
   for (int m = 0; m < 110; m = m + 10) {
     tft.drawLine(0, 350 - m, 800, 350 - m, 0x3186);  //0x4228
@@ -1640,7 +1740,7 @@ void GraphWindRain() {
 
 
 void GraphTemp() {
-  tft.fillRect(0, 360, 800, 51, TFT_BLACK);
+  tft.fillRect(0, 360, 800, 51, 0x08A5);
   //  Graph Line
   for (int m = 0; m < 60; m = m + 10) {
     tft.drawLine(0, 410 - m, 800, 410 - m, 0x3186);  //0x4228
@@ -1677,7 +1777,7 @@ void GraphTemp() {
 
 
 void GraphHum() {
-  tft.fillRect(0, 420, 800, 50, TFT_BLACK);
+  tft.fillRect(0, 420, 800, 50, 0x08A5);
   //  Graph Line
   for (int m = 0; m < 60; m = m + 10) {
     tft.drawLine(0, 470 - m, 800, 470 - m, 0x3186);  //0x4228
@@ -1753,8 +1853,8 @@ void saveSDData(time_t local_time) {
   tft.setTextPadding(tft.textWidth(" SD "));
 
   if (!sdReady) {
-    SD.end();     // 🔥 reset SD stack
-    spiSD.end();  // 🔥 reset SPI
+    SD.end();     // ðŸ”¥ reset SD stack
+    spiSD.end();  // ðŸ”¥ reset SPI
     delay(50);
 
     spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
@@ -2531,9 +2631,9 @@ void drawCurrentWeather(time_t local_time) {
   // Temperature
   tft.loadFont(AA_FONT_40, LittleFS);
   tft.setTextDatum(TL_DATUM);
-  tft.setTextPadding(tft.textWidth("88,8°"));
+  tft.setTextPadding(tft.textWidth("88,8Â°"));
 
-  snprintf(buf, sizeof(buf), "%.1f°", weatherData.temperature);
+  snprintf(buf, sizeof(buf), "%.1fÂ°", weatherData.temperature);
   tft.drawString(buf, 322, 186);
   tft.unloadFont();
 
@@ -2822,7 +2922,7 @@ void fillSegment(int x, int y, int start_angle, int sub_angle, int r, unsigned i
 String convertTo24HourFormat(String hour12) {
   String hourStr = hour12.substring(0, 2);    // "05"
   String minuteStr = hour12.substring(3, 5);  // "12"
-  String period = hour12.substring(6);        // "PM" hoặc "AM"
+  String period = hour12.substring(6);        // "PM" hoáº·c "AM"
 
   int hour = hourStr.toInt();
   int minute = minuteStr.toInt();
@@ -2833,7 +2933,7 @@ String convertTo24HourFormat(String hour12) {
     hour = 0;
   }
 
-  // Định dạng lại theo chuẩn 24h
+  // Äá»‹nh dáº¡ng láº¡i theo chuáº©n 24h
   String result = (hour < 10 ? "0" : "") + String(hour) + ":" + (minute < 10 ? "0" : "") + String(minute);
   return result;
 }
