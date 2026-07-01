@@ -1443,7 +1443,7 @@ void drawSignal() {
 
   // --- (Time Connect) ---
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setTextPadding(tft.textWidth("4,294,967.295s"));
+  tft.setTextPadding(tft.textWidth("4,294,967s"));
   snprintf(sigBuf, sizeof(sigBuf), "%.0fs", fTimeConnect);
   tft.drawString(sigBuf, 800, 80);
 
