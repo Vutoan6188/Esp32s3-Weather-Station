@@ -2054,7 +2054,7 @@ void sendWeatherUndergroundDone() {
   const int yLocal = (currentPage == 0) ? 70 : 30;
   const int xLocal = (currentPage == 0) ? 716 : 698;
 
-  if (httpCode == HTTP_CODE_OK) {
+  if (code == HTTP_CODE_OK) {
 
     String payload = http.getString();
 
