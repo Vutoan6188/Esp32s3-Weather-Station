@@ -70,8 +70,9 @@ volatile bool astronomyReady = false;
 volatile bool SendPWSData = false;
 volatile int windyLastHttpCode = -1;
 volatile bool windyResultPending = false;
-volatile int WeatherUndergroundLastHttpCode = -1;
-volatile bool WeatherUndergroundResultPending = false;
+volatile int WULastHttpCode = -1;
+volatile bool WUResultPending = false;
+String WUResponse = "";
 
 bool newLoRaData = false;
 //blynkservererror
@@ -111,8 +112,8 @@ void drawTime(time_t local_time);
 void updateBlynk();
 void sendWindy();
 void sendWindyDone();
-void sendWeatherUnderground();
-void sendWeatherUndergroundDone();
+void sendWU();
+void sendWUDone();
 void enterLightSleep();
 void GetLoRa();
 void drawTemHumIndoor();
@@ -283,17 +284,19 @@ char authKey[40] = "";
 // Windy
 char windyStationID[32] = "";
 char windyPassword[96] = "";
-// WeatherUnderground
-char wuStationID[32] = "";
-char wuStationKey[96] = "";
+
+// WeatherUnderground - ID và Key thực tế ngắn (VD: "KKSSCOTT94", "MPpPODMf")
+char wuStationID[16] = "";   // dư ra 15 ký tự + null, đủ cho mọi format WU ID
+char wuStationKey[16] = "";  // dư ra 15 ký tự + null, key WU thường ~8 ký tự
+
 // EEPROM Address
 #define ADDR_LOCATION 0      // 40 bytes (0 -> 39)
 #define ADDR_API 40          // 48 bytes (40 -> 87)
 #define ADDR_BLYNK 88        // 40 bytes (88 -> 127)
 #define ADDR_WINDY_ID 128    // 32 bytes (128 -> 159)
 #define ADDR_WINDY_PASS 160  // 96 bytes (160 -> 255)
-#define ADDR_WU_ID 256       //32
-#define ADDR_WU_KEY 288      //96
+#define ADDR_WU_ID 256       // 16 bytes (256 -> 271)
+#define ADDR_WU_KEY 272      // 16 bytes (272 -> 287)
 
 const char* GITHUB_USER = "Vutoan6188";
 const char* GITHUB_REPO = "Esp32s3-Weather-Station";
@@ -362,9 +365,10 @@ void WeatherTask(void* pvParameters) {
     // Windy upload — 6 minutes
     if (m % 6 == 0 && s >= 2 && !SendPWSData) {
       sendWindy();
-      sendWeatherUnderground();
+      sendWU();
       SendPWSData = true;
     }
+    //if (s == 0)
     if (m % 6 != 0)
       SendPWSData = false;
 
@@ -413,7 +417,7 @@ void initESPTemp() {
 **                          Setup
 ***************************************************************************************/
 void setup() {
-  //  Serial.begin(115200);
+  //Serial.begin(115200);
   // Tắt hoàn toàn Bluetooth để tiết kiệm pin
   btStop();
   pinMode(BUTTON_PIN, INPUT_PULLUP);
@@ -456,6 +460,9 @@ void setup() {
 
     EEPROM.get(ADDR_WINDY_ID, windyStationID);
     EEPROM.get(ADDR_WINDY_PASS, windyPassword);
+
+    EEPROM.get(ADDR_WU_ID, wuStationID);
+    EEPROM.get(ADDR_WU_KEY, wuStationKey);
   }
 
   // Add custom parameters for WiFiManager
@@ -956,6 +963,11 @@ void loop() {
   // sendWindyDone
   if (windyResultPending) {
     sendWindyDone();
+  }
+
+  // sendWUDone
+  if (WUResultPending) {
+    sendWUDone();
   }
 
   // drawCurrentWeaher
@@ -1943,26 +1955,26 @@ void sendWindyDone() {
 
   tft.loadFont(AA_FONT_10, LittleFS);
   tft.setTextDatum(TL_DATUM);
-  tft.setTextPadding(tft.textWidth("WINDY"));
+  tft.setTextPadding(tft.textWidth("WD"));
   const int yLocal = (currentPage == 0) ? 70 : 30;
   const int xLocal = (currentPage == 0) ? 690 : 672;
 
   switch (code) {
     case HTTP_CODE_OK:
       tft.setTextColor(TFT_BLACK, TFT_GREEN);
-      tft.drawString("WINDY", xLocal, yLocal);
+      tft.drawString("WD", xLocal, yLocal);
       break;
 
     case 400:
     case 401:
     case 429:
       tft.setTextColor(TFT_BLACK, TFT_RED);
-      tft.drawString("WINDY", xLocal, yLocal);
+      tft.drawString("WD", xLocal, yLocal);
       break;
 
     case 409:
       tft.setTextColor(TFT_BLACK, TFT_GREEN);
-      tft.drawString("WINDY", xLocal, yLocal);
+      tft.drawString("WD", xLocal, yLocal);
       break;
 
     default:
@@ -1978,14 +1990,22 @@ void sendWindyDone() {
 }
 
 
-void sendWeatherUnderground() {
+void sendWU() {
+  if (WiFi.status() != WL_CONNECTED) {
+    return;
+  }
 
-  if (WiFi.status() != WL_CONNECTED) return;
+  if (wuStationID[0] == '\0') {
+    return;
+  }
 
-  if (wuStationID[0] == '\0') return;
-  if (wuStationKey[0] == '\0') return;
+  if (wuStationKey[0] == '\0') {
+    return;
+  }
 
-  WiFiClient client;
+  WiFiClientSecure client;  // <-- đổi từ WiFiClient
+  client.setInsecure();     // <-- bỏ qua verify cert, đơn giản & đủ dùng
+
   HTTPClient http;
 
   char url[420];
@@ -1993,7 +2013,6 @@ void sendWeatherUnderground() {
   snprintf(
     url,
     sizeof(url),
-
     "https://weatherstation.wunderground.com/weatherstation/updateweatherstation.php"
     "?ID=%s"
     "&PASSWORD=%s"
@@ -2008,75 +2027,74 @@ void sendWeatherUnderground() {
     "&dailyrainin=%.3f"
     "&softwaretype=ESP32-S3"
     "&action=updateraw",
-
     wuStationID,
     wuStationKey,
-
     winddy,
-
     fWindSpeed * 0.621371f,
     maxWindHour * 0.621371f,
-
     HumiOutDoor,
-
     TempOutDoor * 9.0f / 5.0f + 32.0f,
-
     Pressurecal * 0.029529983f,
-
     mmHourly * 0.0393701f,
-
     mmDaily * 0.0393701f);
 
   http.setConnectTimeout(3000);
   http.setTimeout(5000);
 
   if (!http.begin(client, url)) {
-    //Serial.println(F("[WU] Begin Failed"));
     return;
   }
 
   int httpCode = http.GET();
 
-  WeatherUndergroundLastHttpCode = httpCode;
-  WeatherUndergroundResultPending = true;
+  WULastHttpCode = httpCode;
+
+  if (httpCode > 0) {
+    WUResponse = http.getString();
+    WUResponse.trim();
+  } else {
+    WUResponse = "";
+  }
+
+  WUResultPending = true;
 
   http.end();
 }
 
 
-void sendWeatherUndergroundDone() {
-  WeatherUndergroundResultPending = false;
-  int code = WeatherUndergroundLastHttpCode;
+void sendWUDone() {
+  WUResultPending = false;
+  int code = WULastHttpCode;
 
   tft.loadFont(AA_FONT_10, LittleFS);
   tft.setTextDatum(TL_DATUM);
   tft.setTextPadding(tft.textWidth("WU"));
+
   const int yLocal = (currentPage == 0) ? 70 : 30;
-  const int xLocal = (currentPage == 0) ? 716 : 698;
+  const int xLocal = (currentPage == 0) ? 709 : 717;
 
   if (code == HTTP_CODE_OK) {
 
-    String payload = http.getString();
-
-    payload.trim();
-
-    if (payload.startsWith("success")) {
+    if (WUResponse.startsWith("success")) {
       tft.setTextColor(TFT_BLACK, TFT_GREEN);
       tft.drawString("WU", xLocal, yLocal);
       //Serial.println(F("[WU] Upload OK"));
     } else {
       tft.setTextColor(TFT_BLACK, TFT_RED);
       tft.drawString("WU", xLocal, yLocal);
-      //Serial.printf("[WU] %s\n", payload.c_str());
+      //Serial.printf("[WU] %s\n", WUResponse.c_str());
     }
 
   } else {
+
     char codeBuf[8];
     snprintf(codeBuf, sizeof(codeBuf), "%d", code);
+
     tft.setTextColor(TFT_BLACK, TFT_RED);
     tft.drawString(codeBuf, xLocal, yLocal);
-    //Serial.printf("[WU] HTTP %d\n", httpCode);
+    //Serial.printf("[WU] HTTP %d\n", code);
   }
+
   tft.setTextPadding(0);
   tft.unloadFont();
 }
