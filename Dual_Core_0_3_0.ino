@@ -21,7 +21,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.3.0"
+#define FIRMWARE_VERSION "0.3.1"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
@@ -72,13 +72,18 @@ volatile bool firstWeatherRun = true;
 volatile bool firstAstronomyRun = true;
 volatile bool weatherReady = false;
 volatile bool astronomyReady = false;
-volatile bool SendWindyDone = false;
-volatile bool SendWUDone = false;
+volatile bool SendPWSData = false;
 volatile int windyLastHttpCode = -1;
 volatile bool windyResultPending = false;
 volatile int WULastHttpCode = -1;
 volatile bool WUResultPending = false;
 String WUResponse = "";
+
+//minHeap log
+volatile uint32_t minHeapSeen = UINT32_MAX;
+char minHeapLabel[32] = "";
+char minHeapTime[16] = "";
+volatile bool minHeapUpdated = false;
 
 bool newLoRaData = false;
 //blynkservererror
@@ -355,6 +360,23 @@ int16_t windDirBuffer[MAX_SD_POINTS];
 
 int16_t rainBuffer[MAX_SD_POINTS];
 
+// minHeap log
+void logHeapMin(const char* label) {
+  uint32_t h = ESP.getFreeHeap();
+  if (h < minHeapSeen) {
+    minHeapSeen = h;
+    time_t now_t = getLocalTimeSafe();
+    strncpy(minHeapLabel, label, sizeof(minHeapLabel) - 1);
+    snprintf(minHeapTime, sizeof(minHeapTime), "%02d:%02d:%02d",
+             getHour(now_t), getMinute(now_t), getSecond(now_t));
+    minHeapUpdated = true;
+
+/*    Serial.printf("[HEAP MIN] %u | %s | block:%u | core:%d | %s\n",
+                  h, label, heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
+                  xPortGetCoreID(), minHeapTime);
+                  */
+  }
+}
 
 /***************************************************************************************
 **                          WeatherTask
@@ -370,34 +392,32 @@ void WeatherTask(void* pvParameters) {
     int d = getDay(local_time);
 
     // Windy upload — 6 minutes
-    if (m % 6 == 0 && s >= 2 && !SendWindyDone) {
+    if (m % 6 == 0 && s >= 2 && !SendPWSData) {
       sendWindy();
-      SendWindyDone = true;
-    }
-
-    if (m % 6 == 0 && s >= 10 && !SendWUDone) {
+      logHeapMin("sendWindy");
       sendWU();
-      SendWUDone = true;
+      logHeapMin("sendWU");
+      SendPWSData = true;
     }
-
-    if (m % 6 != 0) {
-      SendWindyDone = false;
-      SendWUDone = false;
-    }
+    //if (s == 0)
+    if (m % 6 != 0)
+      SendPWSData = false;
 
     // WeatherData
-    if (firstWeatherRun || (m == 0 && s >= 18 && !GetWeatherData)) {
+    if (firstWeatherRun || (m == 0 && s >= 7 && !GetWeatherData)) {
       firstWeatherRun = false;
       updateWeatherData(local_time);
+      logHeapMin("updateWeatherData");
       GetWeatherData = true;
     }
     if (m != 0)
       GetWeatherData = false;
 
     // AstronomyData
-    if (firstAstronomyRun || (h == 0 && m == 0 && s >= 26 && !GetAstronomy)) {
+    if (firstAstronomyRun || (h == 0 && m == 0 && s >= 10 && !GetAstronomy)) {
       firstAstronomyRun = false;
       updateAstronomy(local_time);
+      logHeapMin("updateAstronomy");
       GetAstronomy = true;
     }
     if (h != 0)
@@ -818,11 +838,7 @@ void debugMemoryTFT(int baseY) {
   uint32_t minHeap = ESP.getMinFreeHeap();
 
   uint32_t largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-  /*
-  int barHeap = map(constrain(freeHeap, 40000, 120000), 40000, 120000, 0, 50);
-  int barMin = map(constrain(minHeap, 20000, 120000), 20000, 120000, 0, 50);
-  int barBlock = map(constrain(largestBlock, 10000, 80000), 10000, 80000, 0, 50);
-*/
+
   int barHeap = map(
     constrain(freeHeap, 50000, 100000),
     50000, 100000,
@@ -863,6 +879,17 @@ void debugMemoryTFT(int baseY) {
   // Largest Block
   tft.fillRect(750, baseY + 20, 50, 8, 0x4228);
   tft.fillRect(750, baseY + 20, barBlock, 8, TFT_RED);
+
+  // minHeap log
+  if (minHeapUpdated) {
+    minHeapUpdated = false;
+    tft.setTextDatum(TR_DATUM);
+    tft.setTextPadding(tft.textWidth("MinHeap: 88888 (updateWeatherData) @88:88:88"));
+    const int yStatus = (currentPage == 0) ? 100 : 30;
+    snprintf(buf, sizeof(buf), "MinHeap: %u (%s) @%s",
+             minHeapSeen, minHeapLabel, minHeapTime);
+    tft.drawString(buf, 770, yStatus);
+  }
 }
 
 
@@ -888,6 +915,7 @@ void loop() {
     last_WriteSD = m;
     tft.loadFont(AA_FONT_10, LittleFS);
     saveSDData(local_time);
+    logHeapMin("saveSD");
     updateGraphWindRain();
     updateGraphTemp();
     updateGraphHum();
@@ -1225,6 +1253,7 @@ void checkButton(time_t local_time) {
           tft.unloadFont();
         } else {
           readSDData(local_time);
+          logHeapMin("readSD");
           tft.loadFont(AA_FONT_10, LittleFS);
           GraphWindRainSD();
           GraphTempSD();
