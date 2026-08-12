@@ -11,8 +11,7 @@
 // not use commont client, dont use char for URL update weather/astronomy... 6/7
 // use char[]. use arduinojson7 for GetLoRa
 // add Blynk.run() fix offline status 10/7
-// extra for WeatherTask longer
-//
+// change %.3f -> %.5f 16/7
 #define AA_FONT_SMALL "fonts/NotoSansBold15"
 #define AA_FONT_LARGE "fonts/NotoSansBold36"
 #define AA_FONT_10 "fonts/NotoSans-Bold10"
@@ -21,7 +20,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.3.1"
+#define FIRMWARE_VERSION "0.3.0"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
@@ -66,8 +65,8 @@ TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprTime = TFT_eSprite(&tft);
 
 volatile bool booted = false;
-volatile bool GetWeatherData = false;
-volatile bool GetAstronomy = false;
+//volatile bool GetWeatherData = false;
+//volatile bool GetAstronomy = false;
 volatile bool firstWeatherRun = true;
 volatile bool firstAstronomyRun = true;
 volatile bool weatherReady = false;
@@ -79,18 +78,14 @@ volatile int WULastHttpCode = -1;
 volatile bool WUResultPending = false;
 String WUResponse = "";
 
-//minHeap log
-volatile uint32_t minHeapSeen = UINT32_MAX;
-char minHeapLabel[32] = "";
-char minHeapTime[16] = "";
-volatile bool minHeapUpdated = false;
-
 bool newLoRaData = false;
 //blynkservererror
 bool blynkEnabled = false;
 unsigned long blynkLostMillis = 0;
 bool blynkReconnectScheduled = false;
 int lastReconnectMinute = -1;
+static int lastWeatherHour = -1;
+static int lastAstronomyDay = -1;
 
 WiFiManager wifiManager;
 GfxUi ui = GfxUi(&tft);
@@ -360,23 +355,6 @@ int16_t windDirBuffer[MAX_SD_POINTS];
 
 int16_t rainBuffer[MAX_SD_POINTS];
 
-// minHeap log
-void logHeapMin(const char* label) {
-  uint32_t h = ESP.getFreeHeap();
-  if (h < minHeapSeen) {
-    minHeapSeen = h;
-    time_t now_t = getLocalTimeSafe();
-    strncpy(minHeapLabel, label, sizeof(minHeapLabel) - 1);
-    snprintf(minHeapTime, sizeof(minHeapTime), "%02d:%02d:%02d",
-             getHour(now_t), getMinute(now_t), getSecond(now_t));
-    minHeapUpdated = true;
-
-/*    Serial.printf("[HEAP MIN] %u | %s | block:%u | core:%d | %s\n",
-                  h, label, heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
-                  xPortGetCoreID(), minHeapTime);
-                  */
-  }
-}
 
 /***************************************************************************************
 **                          WeatherTask
@@ -394,9 +372,7 @@ void WeatherTask(void* pvParameters) {
     // Windy upload — 6 minutes
     if (m % 6 == 0 && s >= 2 && !SendPWSData) {
       sendWindy();
-      logHeapMin("sendWindy");
       sendWU();
-      logHeapMin("sendWU");
       SendPWSData = true;
     }
     //if (s == 0)
@@ -404,24 +380,18 @@ void WeatherTask(void* pvParameters) {
       SendPWSData = false;
 
     // WeatherData
-    if (firstWeatherRun || (m == 0 && s >= 7 && !GetWeatherData)) {
+    if (firstWeatherRun || h != lastWeatherHour) {
       firstWeatherRun = false;
       updateWeatherData(local_time);
-      logHeapMin("updateWeatherData");
-      GetWeatherData = true;
+      lastWeatherHour = h;
     }
-    if (m != 0)
-      GetWeatherData = false;
 
     // AstronomyData
-    if (firstAstronomyRun || (h == 0 && m == 0 && s >= 10 && !GetAstronomy)) {
+    if (firstAstronomyRun || d != lastAstronomyDay) {
       firstAstronomyRun = false;
       updateAstronomy(local_time);
-      logHeapMin("updateAstronomy");
-      GetAstronomy = true;
+      lastAstronomyDay = d;
     }
-    if (h != 0)
-      GetAstronomy = false;
 
     vTaskDelay(pdMS_TO_TICKS(500));
   }
@@ -838,7 +808,11 @@ void debugMemoryTFT(int baseY) {
   uint32_t minHeap = ESP.getMinFreeHeap();
 
   uint32_t largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-
+  /*
+  int barHeap = map(constrain(freeHeap, 40000, 120000), 40000, 120000, 0, 50);
+  int barMin = map(constrain(minHeap, 20000, 120000), 20000, 120000, 0, 50);
+  int barBlock = map(constrain(largestBlock, 10000, 80000), 10000, 80000, 0, 50);
+*/
   int barHeap = map(
     constrain(freeHeap, 50000, 100000),
     50000, 100000,
@@ -879,17 +853,6 @@ void debugMemoryTFT(int baseY) {
   // Largest Block
   tft.fillRect(750, baseY + 20, 50, 8, 0x4228);
   tft.fillRect(750, baseY + 20, barBlock, 8, TFT_RED);
-
-  // minHeap log
-  if (minHeapUpdated) {
-    minHeapUpdated = false;
-    tft.setTextDatum(TR_DATUM);
-    tft.setTextPadding(tft.textWidth("MinHeap: 88888 (updateWeatherData) @88:88:88"));
-    const int yStatus = (currentPage == 0) ? 100 : 30;
-    snprintf(buf, sizeof(buf), "MinHeap: %u (%s) @%s",
-             minHeapSeen, minHeapLabel, minHeapTime);
-    tft.drawString(buf, 770, yStatus);
-  }
 }
 
 
@@ -915,7 +878,6 @@ void loop() {
     last_WriteSD = m;
     tft.loadFont(AA_FONT_10, LittleFS);
     saveSDData(local_time);
-    logHeapMin("saveSD");
     updateGraphWindRain();
     updateGraphTemp();
     updateGraphHum();
@@ -1253,7 +1215,6 @@ void checkButton(time_t local_time) {
           tft.unloadFont();
         } else {
           readSDData(local_time);
-          logHeapMin("readSD");
           tft.loadFont(AA_FONT_10, LittleFS);
           GraphWindRainSD();
           GraphTempSD();
@@ -1737,7 +1698,7 @@ void ResetValue(time_t local_time) {
 
   // --- 1. RESET Hour
   static int lastResetHour = -1;
-  if (m == 0 && s >= 12 && h != lastResetHour) {
+  if (m == 0 && s >= 11 && h != lastResetHour) {
     lastResetHour = h;
     mmHourly = 0;
     maxWindHour = 0;
@@ -1745,7 +1706,7 @@ void ResetValue(time_t local_time) {
 
   // --- 2. RESET Day
   static int lastResetDay = -1;
-  if (h == 0 && m == 0 && s >= 13 && d != lastResetDay) {
+  if (h == 0 && m == 0 && s >= 12 && d != lastResetDay) {
     lastResetDay = d;
 
     // Reset Rain
@@ -2121,8 +2082,8 @@ void sendWU() {
     "&humidity=%.0f"
     "&tempf=%.2f"
     "&baromin=%.3f"
-    "&rainin=%.3f"
-    "&dailyrainin=%.3f"
+    "&rainin=%.5f"       // change %.3f -> %.5f
+    "&dailyrainin=%.5f"  // change %.3f -> %.5f
     "&softwaretype=ESP32-S3"
     "&action=updateraw",
     wuStationID,
