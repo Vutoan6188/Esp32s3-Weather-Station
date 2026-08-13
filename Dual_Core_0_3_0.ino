@@ -20,7 +20,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.3.0"
+#define FIRMWARE_VERSION "0.3.1"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
@@ -2706,9 +2706,9 @@ void updateWeatherData(time_t local_time) {
   bool validData = false;
   int retry = 0;
 
-  while (!validData && retry < 3) {
-    http.setConnectTimeout(4000);
-    http.setTimeout(4000);
+  while (!validData && retry < 4) {
+    http.setConnectTimeout(6000);
+    http.setTimeout(6000);
     http.begin(url1h);
 
     int httpResponseCode = http.GET();
