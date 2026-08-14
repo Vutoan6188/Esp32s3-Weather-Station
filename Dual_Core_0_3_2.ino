@@ -71,7 +71,7 @@ static int lastWeatherHour = -1;
 static int lastAstronomyDay = -1;
 volatile bool firstWeatherRun = true;
 volatile bool firstAstronomyRun = true;
-volatile bool weatherCycleDone = false;
+volatile bool SendPWSDataDone = false;
 volatile bool weatherReady = false;
 volatile bool astronomyReady = false;
 volatile bool SendPWSData = false;
@@ -376,7 +376,7 @@ void WeatherTask(void* pvParameters) {
       sendWindy();
       sendWU();
       SendPWSData = true;
-      weatherCycleDone = true;
+      SendPWSDataDone = true;
     }
     //if (s == 0)
     if (m % 6 != 0)
@@ -1701,7 +1701,7 @@ void ResetValue(time_t local_time) {
 
   // --- 1. RESET Hour
   static int lastResetHour = -1;
-  bool doHourReset = weatherCycleDone && h != lastResetHour;
+  bool doHourReset = SendPWSDataDone && h != lastResetHour;
 
   if (doHourReset) {
     lastResetHour = h;
@@ -1711,7 +1711,7 @@ void ResetValue(time_t local_time) {
 
   // --- 2. RESET Day
   static int lastResetDay = -1;
-  bool doDayReset = weatherCycleDone && d != lastResetDay;
+  bool doDayReset = SendPWSDataDone && d != lastResetDay;
 
   if (doDayReset) {
     lastResetDay = d;
@@ -1733,7 +1733,7 @@ void ResetValue(time_t local_time) {
     minHumiInDoor = 100;
   }
 
-  if (doHourReset || doDayReset) weatherCycleDone = false;
+  if (doHourReset || doDayReset) SendPWSDataDone = false;
 }
 
 
@@ -2776,7 +2776,7 @@ void drawCurrentWeather(time_t local_time) {
   tft.setTextColor(TFT_RED, TFT_BLACK);
   tft.setTextPadding(tft.textWidth("12:30/12:00"));
 
-  snprintf(buf, sizeof(buf), "|%02d:%02d/%.5s", h, m, weatherData.timeupdate);
+  snprintf(buf, sizeof(buf), "%02d:%02d/%.5s", h, m, weatherData.timeupdate);
   tft.drawString(buf, 799, 70);
   tft.unloadFont();
 
