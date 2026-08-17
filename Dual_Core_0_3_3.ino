@@ -2021,15 +2021,15 @@ void sendWindyDone() {
   windyResultPending = false;
   int code = windyLastHttpCode;
 
+  const int yLocal = (currentPage == 0) ? 70 : 30;
+  const int xLocal = (currentPage == 0) ? 690 : 672;
+
   tft.loadFont(AA_FONT_10, LittleFS);
   tft.setTextDatum(TL_DATUM);
   tft.setTextPadding(tft.textWidth("WD"));
 
   tft.setTextColor(TFT_BLACK, TFT_BLACK);
   tft.drawString("WD", xLocal, yLocal);
-
-  const int yLocal = (currentPage == 0) ? 70 : 30;
-  const int xLocal = (currentPage == 0) ? 690 : 672;
 
   switch (code) {
     case HTTP_CODE_OK:
@@ -2138,15 +2138,15 @@ void sendWUDone() {
   WUResultPending = false;
   int code = WULastHttpCode;
 
+  const int yLocal = (currentPage == 0) ? 70 : 30;
+  const int xLocal = (currentPage == 0) ? 709 : 691;
+
   tft.loadFont(AA_FONT_10, LittleFS);
   tft.setTextDatum(TL_DATUM);
   tft.setTextPadding(tft.textWidth("WU"));
 
   tft.setTextColor(TFT_BLACK, TFT_BLACK);
   tft.drawString("WU", xLocal, yLocal);
-
-  const int yLocal = (currentPage == 0) ? 70 : 30;
-  const int xLocal = (currentPage == 0) ? 709 : 691;
 
   if (code == HTTP_CODE_OK) {
 
