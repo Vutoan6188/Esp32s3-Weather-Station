@@ -12,6 +12,7 @@
 // use char[]. use arduinojson7 for GetLoRa
 // add Blynk.run() fix offline status 10/7
 // change %.3f -> %.5f 16/7
+// gần như 0.3.2 chỉ thêm xóa nền WU và WD trước khi gửi dữ liệu mới để quan sát cho biết lúc gửi
 #define AA_FONT_SMALL "fonts/NotoSansBold15"
 #define AA_FONT_LARGE "fonts/NotoSansBold36"
 #define AA_FONT_10 "fonts/NotoSans-Bold10"
