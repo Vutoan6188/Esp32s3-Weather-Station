@@ -816,22 +816,23 @@ void debugMemoryTFT(int baseY, time_t local_time) {
   uint32_t largestBlock =
     heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 
-  // Ghi nhớ thời điểm Min Heap lập kỷ lục thấp mới
   static uint32_t lastMinHeap = UINT32_MAX;
-  static char minHeapTime[6] = "--:--";
+  static char minHeapTime[12] = "--/-- --:--";
 
   if (minHeap < lastMinHeap) {
     lastMinHeap = minHeap;
 
     struct tm timeinfo;
-
     if (localtime_r(&local_time, &timeinfo) != nullptr) {
       snprintf(minHeapTime, sizeof(minHeapTime),
-               "%02d:%02d",
+               "%02d/%02d %02d:%02d",
+               timeinfo.tm_mday,
+               timeinfo.tm_mon + 1,
                timeinfo.tm_hour,
                timeinfo.tm_min);
     }
   }
+
   int barHeap = map(
     constrain(freeHeap, 40000, 100000),
     40000, 100000, 0, 50);
