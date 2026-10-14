@@ -23,7 +23,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.3.5"
+#define FIRMWARE_VERSION "0.3.7"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
