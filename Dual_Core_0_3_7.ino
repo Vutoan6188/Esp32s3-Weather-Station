@@ -831,52 +831,52 @@ void debugMemoryTFT(int baseY, time_t local_time) {
                timeinfo.tm_hour,
                timeinfo.tm_min);
     }
-
-    int barHeap = map(
-      constrain(freeHeap, 40000, 100000),
-      40000, 100000, 0, 50);
-
-    int barMin = map(
-      constrain(minHeap, 5000, 25000),
-      5000, 25000, 0, 50);
-
-    int barBlock = map(
-      constrain(largestBlock, 15000, 45000),
-      15000, 45000, 0, 50);
-
-    // =========================
-    // PRINT TFT
-    // =========================
-
-    char buf[32];
-
-    snprintf(buf, sizeof(buf), "%.1fk",
-             freeHeap / 1000.0f);
-    tft.drawString(buf, 748, baseY);
-
-    // Thời điểm phát hiện Min Heap thấp kỷ lục
-    snprintf(buf, sizeof(buf), "%s %.1fk",
-             minHeapTime, minHeap / 1000.0f);
-    tft.drawString(buf, 748, baseY + 10);
-
-    snprintf(buf, sizeof(buf), "%.1fk",
-             largestBlock / 1000.0f);
-    tft.drawString(buf, 748, baseY + 20);
-
-    // =========================
-    // BARS
-    // =========================
-
-    tft.fillRect(750, baseY, 50, 8, 0x4228);
-    tft.fillRect(750, baseY, barHeap, 8, TFT_RED);
-
-    tft.fillRect(750, baseY + 10, 50, 8, 0x4228);
-    tft.fillRect(750, baseY + 10, barMin, 8, TFT_RED);
-
-    tft.fillRect(750, baseY + 20, 50, 8, 0x4228);
-    tft.fillRect(750, baseY + 20, barBlock, 8, TFT_RED);
   }
+  int barHeap = map(
+    constrain(freeHeap, 40000, 100000),
+    40000, 100000, 0, 50);
+
+  int barMin = map(
+    constrain(minHeap, 5000, 25000),
+    5000, 25000, 0, 50);
+
+  int barBlock = map(
+    constrain(largestBlock, 15000, 45000),
+    15000, 45000, 0, 50);
+
+  // =========================
+  // PRINT TFT
+  // =========================
+
+  char buf[32];
+
+  snprintf(buf, sizeof(buf), "%.1fk",
+           freeHeap / 1000.0f);
+  tft.drawString(buf, 748, baseY);
+
+  // Thời điểm phát hiện Min Heap thấp kỷ lục
+  snprintf(buf, sizeof(buf), "%s %.1fk",
+           minHeapTime, minHeap / 1000.0f);
+  tft.drawString(buf, 748, baseY + 10);
+
+  snprintf(buf, sizeof(buf), "%.1fk",
+           largestBlock / 1000.0f);
+  tft.drawString(buf, 748, baseY + 20);
+
+  // =========================
+  // BARS
+  // =========================
+
+  tft.fillRect(750, baseY, 50, 8, 0x4228);
+  tft.fillRect(750, baseY, barHeap, 8, TFT_RED);
+
+  tft.fillRect(750, baseY + 10, 50, 8, 0x4228);
+  tft.fillRect(750, baseY + 10, barMin, 8, TFT_RED);
+
+  tft.fillRect(750, baseY + 20, 50, 8, 0x4228);
+  tft.fillRect(750, baseY + 20, barBlock, 8, TFT_RED);
 }
+
 
 /***************************************************************************************
 **                          Loop
