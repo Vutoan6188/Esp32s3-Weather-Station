@@ -764,7 +764,7 @@ void drawInterfaceSkeleton() {
   tft.drawString("Min", 624, 50);
   tft.setTextPadding(tft.textWidth("Block"));
   tft.drawString("Block", 624, 60);
-//  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  //  tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.setTextPadding(tft.textWidth("Station Runtime"));
   tft.drawString("Station runtime", 624, 80);
 
@@ -808,7 +808,6 @@ float getESPTemp() {
 void debugMemoryTFT(int baseY, time_t local_time) {
   tft.loadFont(AA_FONT_10, LittleFS);
   tft.setTextDatum(TR_DATUM);
-  tft.setTextColor(TFT_RED, TFT_BLACK);
 
   // =========================
   // HEAP
@@ -818,6 +817,10 @@ void debugMemoryTFT(int baseY, time_t local_time) {
   uint32_t minHeap = ESP.getMinFreeHeap();
   uint32_t largestBlock =
     heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+
+  uint16_t freeHeapColor;
+  uint16_t minHeapColor;
+  uint16_t largestBlockColor;
 
   static uint32_t lastMinHeap = UINT32_MAX;
   static char minHeapTime[12] = "--/-- --:--";
@@ -837,13 +840,37 @@ void debugMemoryTFT(int baseY, time_t local_time) {
     constrain(freeHeap, 40000, 100000),
     40000, 100000, 0, 50);
 
+  if (freeHeap >= 80000) {
+    freeHeapColor = TFT_GREEN;
+  } else if (freeHeap >= 40000) {
+    freeHeapColor = TFT_YELLOW;
+  } else {
+    freeHeapColor = TFT_RED;
+  }
+
   int barMin = map(
     constrain(minHeap, 5000, 25000),
     5000, 25000, 0, 50);
 
+  if (minHeap >= 18000) {
+    minHeapColor = TFT_GREEN;
+  } else if (minHeap >= 8000) {
+    minHeapColor = TFT_YELLOW;
+  } else {
+    minHeapColor = TFT_RED;
+  }
+
   int barBlock = map(
     constrain(largestBlock, 15000, 45000),
     15000, 45000, 0, 50);
+
+  if (largestBlock >= 28000) {
+    largestBlockColor = TFT_GREEN;
+  } else if (largestBlock >= 14000) {
+    largestBlockColor = TFT_YELLOW;
+  } else {
+    largestBlockColor = TFT_RED;
+  }
 
   // =========================
   // PRINT TFT
@@ -851,15 +878,17 @@ void debugMemoryTFT(int baseY, time_t local_time) {
 
   char buf[32];
 
+  tft.setTextColor(freeHeapColor, TFT_BLACK);
   snprintf(buf, sizeof(buf), "%.1fk",
            freeHeap / 1000.0f);
   tft.drawString(buf, 748, baseY);
 
-  // Thời điểm phát hiện Min Heap thấp kỷ lục
+  tft.setTextColor(minHeapColor, TFT_BLACK);
   snprintf(buf, sizeof(buf), "%s %.1fk",
            minHeapTime, minHeap / 1000.0f);
   tft.drawString(buf, 748, baseY + 10);
 
+  tft.setTextColor(largestBlockColor, TFT_BLACK);
   snprintf(buf, sizeof(buf), "%.1fk",
            largestBlock / 1000.0f);
   tft.drawString(buf, 748, baseY + 20);
@@ -869,13 +898,13 @@ void debugMemoryTFT(int baseY, time_t local_time) {
   // =========================
 
   tft.fillRect(750, baseY, 50, 8, 0x4228);
-  tft.fillRect(750, baseY, barHeap, 8, TFT_RED);
+  tft.fillRect(750, baseY, barHeap, 8, freeHeapColor);
 
   tft.fillRect(750, baseY + 10, 50, 8, 0x4228);
-  tft.fillRect(750, baseY + 10, barMin, 8, TFT_RED);
+  tft.fillRect(750, baseY + 10, barMin, 8, minHeapColor);
 
   tft.fillRect(750, baseY + 20, 50, 8, 0x4228);
-  tft.fillRect(750, baseY + 20, barBlock, 8, TFT_RED);
+  tft.fillRect(750, baseY + 20, barBlock, 8, largestBlockColor);
 }
 
 
