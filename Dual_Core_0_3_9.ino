@@ -15,6 +15,7 @@
 // gần như 0.3.2 chỉ thêm xóa nền WU và WD trước khi gửi dữ liệu mới để quan sát cho biết lúc gửi
 // đổi thư viện VietnameseLunar mới cho đúng ngày âm. đang theo dõi thêm
 // đang thêm báo thời gian tụt minHeap vào dòng trạng thái để biết tụt lúc nào
+// chỉnh code moonphase. hiện tại theo âm lịch nhưng giờ theo moonphasse từ API trả về cho khớp ngoài trời
 // chỉnh code đổi màu của các status như lora, wifi hay battery theo phần trăm để tiện theo dõi trên màn tft
 
 #define AA_FONT_SMALL "fonts/NotoSansBold15"
@@ -807,6 +808,7 @@ float getESPTemp() {
 void debugMemoryTFT(int baseY, time_t local_time) {
   tft.loadFont(AA_FONT_10, LittleFS);
   tft.setTextDatum(TR_DATUM);
+  tft.setTextColor(TFT_RED, TFT_BLACK);
 
   // =========================
   // HEAP
@@ -819,10 +821,6 @@ void debugMemoryTFT(int baseY, time_t local_time) {
 
   static uint32_t lastMinHeap = UINT32_MAX;
   static char minHeapTime[12] = "--/-- --:--";
-
-  uint16_t freeHeapColor;
-  uint16_t minHeapColor;
-  uint16_t largestBlockColor;
 
   if (minHeap < lastMinHeap) {
     lastMinHeap = minHeap;
@@ -839,37 +837,13 @@ void debugMemoryTFT(int baseY, time_t local_time) {
     constrain(freeHeap, 40000, 100000),
     40000, 100000, 0, 50);
 
-  if (freeHeap >= 80000) {
-    freeHeapColor = TFT_GREEN;
-  } else if (freeHeap >= 40000) {
-    freeHeapColor = TFT_YELLOW;
-  } else {
-    freeHeapColor = TFT_RED;
-  }
-
   int barMin = map(
     constrain(minHeap, 5000, 25000),
     5000, 25000, 0, 50);
 
-  if (minHeap >= 18000) {
-    minHeapColor = TFT_GREEN;
-  } else if (minHeap >= 8000) {
-    minHeapColor = TFT_YELLOW;
-  } else {
-    minHeapColor = TFT_RED;
-  }
-
   int barBlock = map(
     constrain(largestBlock, 15000, 45000),
     15000, 45000, 0, 50);
-
-  if (largestBlock >= 28000) {
-    largestBlockColor = TFT_GREEN;
-  } else if (largestBlock >= 14000) {
-    largestBlockColor = TFT_YELLOW;
-  } else {
-    largestBlockColor = TFT_RED;
-  }
 
   // =========================
   // PRINT TFT
@@ -877,17 +851,15 @@ void debugMemoryTFT(int baseY, time_t local_time) {
 
   char buf[32];
 
-  tft.setTextColor(freeHeapColor, TFT_BLACK);
   snprintf(buf, sizeof(buf), "%.1fk",
            freeHeap / 1000.0f);
   tft.drawString(buf, 748, baseY);
 
-  tft.setTextColor(minHeapColor, TFT_BLACK);
+  // Thời điểm phát hiện Min Heap thấp kỷ lục
   snprintf(buf, sizeof(buf), "%s %.1fk",
            minHeapTime, minHeap / 1000.0f);
   tft.drawString(buf, 748, baseY + 10);
 
-  tft.setTextColor(largestBlockColor, TFT_BLACK);
   snprintf(buf, sizeof(buf), "%.1fk",
            largestBlock / 1000.0f);
   tft.drawString(buf, 748, baseY + 20);
@@ -897,13 +869,13 @@ void debugMemoryTFT(int baseY, time_t local_time) {
   // =========================
 
   tft.fillRect(750, baseY, 50, 8, 0x4228);
-  tft.fillRect(750, baseY, barHeap, 8, freeHeapColor);
+  tft.fillRect(750, baseY, barHeap, 8, TFT_RED);
 
   tft.fillRect(750, baseY + 10, 50, 8, 0x4228);
-  tft.fillRect(750, baseY + 10, barMin, 8, minHeapColor);
+  tft.fillRect(750, baseY + 10, barMin, 8, TFT_RED);
 
   tft.fillRect(750, baseY + 20, 50, 8, 0x4228);
-  tft.fillRect(750, baseY + 20, barBlock, 8, largestBlockColor);
+  tft.fillRect(750, baseY + 20, barBlock, 8, TFT_RED);
 }
 
 
@@ -1331,7 +1303,56 @@ void GetLoRa() {
     tft.fillRect(624, (currentPage == 0) ? 70 : 0, 28, 11, TFT_BLACK);
   }
 }
+/*
+void GetLoRa() {
+  if (e220ttl.available() > 1) {
+    tft.loadFont(AA_FONT_10, LittleFS);
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(TFT_BLACK, TFT_CYAN);
+    tft.setTextPadding(tft.textWidth("LORA"));
+    tft.drawString("LORA", 624, (currentPage == 0) ? 70 : 0);
 
+    ResponseContainer rc = e220ttl.receiveMessageRSSI();
+    rssi = rc.rssi;
+    dbm = -(256 - rssi);
+
+    StaticJsonDocument<250> doc;
+    DeserializationError error = deserializeJson(doc, rc.data);
+
+    if (!error) {
+      float xTempOutDoor = doc["temperature"];
+      if (!isnan(xTempOutDoor) && xTempOutDoor > -20.0 && xTempOutDoor < 80.0) {
+        TempOutDoor = xTempOutDoor;
+      }
+
+      float xHumiOutDoor = doc["humidity"];
+      if (!isnan(xHumiOutDoor) && xHumiOutDoor > 0 && xHumiOutDoor <= 100.0) {
+        HumiOutDoor = xHumiOutDoor;
+      }
+
+      winddy = doc["angle"].as<float>();
+      fWindSpeed = doc["speed"].as<float>();
+      RainGauge = doc["rain"].as<float>();
+      fvalueBat = doc["battery"].as<float>();
+      fvalueSol = doc["solar"].as<float>();
+      fTimeConnect = doc["timerun"].as<float>();
+      Altitude = doc["altitude"].as<float>();
+      Pressurebme = doc["pressure"].as<float>();
+      Pressurecal = Pressurebme + PRESSURE_OFFSET;
+
+      if (fWindSpeed > maxWindHour) maxWindHour = fWindSpeed;
+      mmTotal += RainGauge;
+      mmDaily += RainGauge;
+      mmGraph += RainGauge;
+      mmHourly += RainGauge;
+
+      newLoRaData = true;
+    }
+    tft.unloadFont();
+    tft.fillRect(624, (currentPage == 0) ? 70 : 0, 28, 11, TFT_BLACK);
+  }
+}
+*/
 
 void drawData(time_t local_time) {
   drawAngle();
@@ -1460,7 +1481,6 @@ void drawRain() {
     tft.drawLine(520, 163 - j, 549, 163 - j, TFT_BLACK);
   }
 }
-
 
 void drawSignal() {
   WiFiRSSI = WiFi.RSSI();
@@ -1610,6 +1630,95 @@ void drawSignal() {
   tft.unloadFont();
 }
 
+/*
+void drawSignal() {
+  WiFiRSSI = WiFi.RSSI();
+
+  if (WiFi.status() != WL_CONNECTED) {
+    valueWiFiStrong = 0;
+    WiFiRSSI = -120;
+  } else {
+    valueWiFiStrong = map(WiFiRSSI, -35, -120, 50, 0);
+    valueWiFiStrong = constrain(valueWiFiStrong, 0, 50);
+  }
+
+  valueLoRaStrong = map(dbm, -35, -120, 50, 0);
+  valueLoRaStrong = constrain(valueLoRaStrong, 0, 50);
+
+  // LoRa Station Battery
+  gBat = fvalueBat * 1000;
+  valueBattery = map(gBat, 2500, 4200, 0, 50);
+  valueBattery = constrain(valueBattery, 0, 50);
+
+  // Battery of Display
+  float analogVolts = (analogReadMilliVolts(BATTERY_PIN) * 1.556);
+  valueBattery1 = map(analogVolts, 2500, 4200, 0, 50);
+  valueBattery1 = constrain(valueBattery1, 0, 50);
+
+  // Solar Display
+  gSol = fvalueSol * 100;
+  valueSolar = map(gSol, 0, 2000, 0, 50);
+  valueSolar = constrain(valueSolar, 0, 50);
+
+  tft.loadFont(AA_FONT_10, LittleFS);
+  tft.setTextDatum(TR_DATUM);
+
+  char sigBuf[32];
+
+  // --- WiFi ---
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextPadding(tft.textWidth("-888dBm"));
+  snprintf(sigBuf, sizeof(sigBuf), "%ddBm", WiFiRSSI);
+  tft.drawString(sigBuf, 748, 0);
+
+  tft.fillRect(750, 0, 50, 8, 0x4228);
+  tft.fillRect(750, 0, valueWiFiStrong, 8, 0xFFFF);
+
+  // --- LoRa ---
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.setTextPadding(tft.textWidth("-888dBm"));
+  snprintf(sigBuf, sizeof(sigBuf), "%ddBm", dbm);
+  tft.drawString(sigBuf, 748, 10);
+
+  tft.fillRect(750, 10, 50, 8, 0x4228);
+  tft.fillRect(750, 10, valueLoRaStrong, 8, 0x07FF);
+
+  // --- Battery ---
+  tft.fillRect(750, 20, 50, 8, 0x4228);
+  tft.fillRect(750, 20, valueBattery, 4, 0x07E0);
+  tft.fillRect(750, 24, valueBattery1, 4, TFT_RED);
+
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.setTextPadding(tft.textWidth("20.00/4.3V"));
+  snprintf(sigBuf, sizeof(sigBuf), "%.2f|%.2fv", fvalueBat, (analogVolts / 1000.0));
+  tft.drawString(sigBuf, 748, 20);
+
+  // --- Solar ---
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.setTextPadding(tft.textWidth("20.00/20V"));
+  snprintf(sigBuf, sizeof(sigBuf), "%.2f/20v", fvalueSol);
+  tft.drawString(sigBuf, 748, 30);
+
+  tft.fillRect(750, 30, 50, 8, 0x4228);
+  tft.fillRect(750, 30, valueSolar, 8, 0xFFE0);
+
+  // --- (Time Connect) ---
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextPadding(tft.textWidth("888.8d|888.8d"));
+  float espRunDays = esp_timer_get_time() / 86400000000.0f;
+
+  snprintf(sigBuf, sizeof(sigBuf),
+           "%.1fd|%.1fd",
+           fTimeConnect / 86400.0f,
+           espRunDays);
+  //  snprintf(sigBuf, sizeof(sigBuf), "%.1fd", fTimeConnect / 86400.0f);
+  //  snprintf(sigBuf, sizeof(sigBuf), "%.0fs", fTimeConnect);
+  tft.drawString(sigBuf, 800, 80);
+
+  tft.setTextPadding(0);
+  tft.unloadFont();
+}
+*/
 
 void drawTemHumOutdoor() {
   if (TempOutDoor < minTempOutDoor) minTempOutDoor = TempOutDoor;
@@ -2004,7 +2113,9 @@ void GraphHum() {
   tft.drawString("0", 800, 482);
 }
 
-
+/***************************************************************************************
+**                          Upload Blynk Data
+***************************************************************************************/
 void updateBlynk() {
   tft.loadFont(AA_FONT_10, LittleFS);
   tft.setTextDatum(TL_DATUM);
@@ -2025,7 +2136,9 @@ void updateBlynk() {
   tft.fillRect(654, (currentPage == 0) ? 70 : 0, 36, 11, TFT_BLACK);
 }
 
-
+/***************************************************************************************
+**                          Send Windy
+***************************************************************************************/
 void sendWindy() {
   if (WiFi.status() != WL_CONNECTED) return;
   if (windyStationID[0] == '\0') return;
@@ -2083,7 +2196,9 @@ void sendWindy() {
   http.end();
 }
 
-
+/***************************************************************************************
+**                          Send Windy Done
+***************************************************************************************/
 void sendWindyDone() {
   windyResultPending = false;
   int code = windyLastHttpCode;
@@ -2128,7 +2243,9 @@ void sendWindyDone() {
   tft.unloadFont();
 }
 
-
+/***************************************************************************************
+**                          Send WeatherUnderGround
+***************************************************************************************/
 void sendWU() {
   if (WiFi.status() != WL_CONNECTED) {
     return;
@@ -2200,7 +2317,9 @@ void sendWU() {
   http.end();
 }
 
-
+/***************************************************************************************
+**                          Send WeatherUnderGround Done
+***************************************************************************************/
 void sendWUDone() {
   WUResultPending = false;
   int code = WULastHttpCode;
@@ -2241,7 +2360,9 @@ void sendWUDone() {
   tft.unloadFont();
 }
 
-
+/***************************************************************************************
+**                          Save SD Data
+***************************************************************************************/
 void saveSDData(time_t local_time) {
   tft.setTextDatum(TR_DATUM);
   tft.setTextPadding(tft.textWidth(" SD "));
@@ -2326,21 +2447,12 @@ void saveSDData(time_t local_time) {
   tft.setTextColor(TFT_BLACK, TFT_GREEN);
   tft.drawString(" SD ", 770, yStatus);
   saveSDDone = true;
-  /*
-  logCount++;
-
-  char logBuf[8];
-  snprintf(logBuf, sizeof(logBuf), "%d", logCount);
-
-  tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.setTextPadding(tft.textWidth("99999"));
-  tft.drawString(logBuf, 732, yStatus);
-*/
 }
 
-
+/***************************************************************************************
+**                          Read SD Data
+***************************************************************************************/
 void readSDData(time_t local_time) {
-
   // =====================================================
   // CLEAR BUFFER
   // =====================================================
@@ -2527,7 +2639,6 @@ void readSDData(time_t local_time) {
   delay(10);
 }
 
-
 // =====================================================
 // GRAPH WIND + RAIN
 // =====================================================
@@ -2591,7 +2702,6 @@ void GraphWindRainSD() {
                  sdWindGust[k - 1],
                  TFT_RED);
   }
-
   tft.setTextDatum(BL_DATUM);
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   //  tft.drawString("0", 0, 337);
@@ -2614,7 +2724,6 @@ void GraphWindRainSD() {
   tft.drawString("E", 20, 157);
   tft.drawString("N", 20, 177);
 }
-
 
 // =====================================================
 // GRAPH TEMP
@@ -2655,7 +2764,6 @@ void GraphTempSD() {
                  sdTempIn[k - 1],
                  TFT_CYAN);
   }
-
   tft.setTextPadding(tft.textWidth("8"));
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   //  tft.drawString("0", 0, 407);
@@ -2664,7 +2772,6 @@ void GraphTempSD() {
   tft.drawString("30", 0, 307);
   tft.drawString("40", 0, 287);
 }
-
 
 // =====================================================
 // GRAPH HUM
@@ -2733,7 +2840,6 @@ void GraphHumSD() {
   tft.drawString("30", 80, 482);
 }
 
-
 /***************************************************************************************
 **                          Draw the clock digits
 ***************************************************************************************/
@@ -2770,9 +2876,8 @@ void drawTime(time_t local_time) {
   sprTime.setTextPadding(0);
 }
 
-
 /***************************************************************************************
-**                          Fetch the weather data  and update screen
+**                          Update Weather Data
 ***************************************************************************************/
 // Update the Internet based information and update screen
 void updateWeatherData(time_t local_time) {
@@ -2926,7 +3031,9 @@ void drawCurrentWeather(time_t local_time) {
   tft.unloadFont();
 }
 
-
+/***************************************************************************************
+**                          Update Astronomy Data
+***************************************************************************************/
 void updateAstronomy(time_t local_time) {
   HTTPClient http;
 
@@ -2987,8 +3094,9 @@ void updateAstronomy(time_t local_time) {
   }
 }
 
-
-// Backlight //
+/***************************************************************************************
+**                          Control Backlight
+***************************************************************************************/
 void updateBacklight() {
   int lux = lightMeter.readLightLevel();
 
@@ -3008,7 +3116,6 @@ void updateBacklight() {
     currentBacklightPWM = pwm;
   }
 }
-
 
 /***************************************************************************************
 **                          Draw Sun rise/set, Moon, cloud cover and humidity
@@ -3030,9 +3137,13 @@ void drawAstronomy(time_t local_time) {
   snprintf(buf, sizeof(buf), "%d/%d", lunar.day, lunar.month);
   tft.drawString(buf, 279, 207);
 
+  int moonIcon = moonIconFromPhase(astronomyData.moonage);
+  snprintf(buf, sizeof(buf), "/moon/%d.bmp", moonIcon);
+  ui.drawBmp(buf, 90, 167);
+  /*
   snprintf(buf, sizeof(buf), "/moon/%d.bmp", lunar.day);
   ui.drawBmp(buf, 90, 167);
-
+*/
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.setTextPadding(tft.textWidth("88 : 88"));
   tft.setTextDatum(BC_DATUM);
@@ -3060,7 +3171,6 @@ void drawAstronomy(time_t local_time) {
   tft.setTextPadding(0);
   tft.unloadFont();
 }
-
 
 /***************************************************************************************
 **                          Get the icon file name from the index number
@@ -3107,7 +3217,6 @@ const char* getMeteoconIcon(const char* weatherIcon, int Cloudcover, int isday) 
   }
   return "Unknown";
 }
-
 
 /***************************************************************************************
 **                          Update progress bar
@@ -3195,6 +3304,9 @@ void fillSegment(int x, int y, int start_angle, int sub_angle, int r, unsigned i
   }
 }
 
+/***************************************************************************************
+**                          Convert 01:23pm to 13:23
+***************************************************************************************/
 String convertTo24HourFormat(String hour12) {
   String hourStr = hour12.substring(0, 2);    // "05"
   String minuteStr = hour12.substring(3, 5);  // "12"
@@ -3209,7 +3321,17 @@ String convertTo24HourFormat(String hour12) {
     hour = 0;
   }
 
-  // Định dạng lại theo chuẩn 24h
   String result = (hour < 10 ? "0" : "") + String(hour) + ":" + (minute < 10 ? "0" : "") + String(minute);
   return result;
+}
+
+/***************************************************************************************
+**                          Convert moonphase from API value 0-1 (1-30 icon)
+***************************************************************************************/
+int moonIconFromPhase(float phase) {
+  phase = phase - floorf(phase);
+  int idx = (int)roundf(phase * 30.0f);  // 0..30
+  if (idx < 1) idx = 30;                 // 0 (trăng non) -> icon tối nhất
+  if (idx > 30) idx = 30;
+  return idx;
 }
