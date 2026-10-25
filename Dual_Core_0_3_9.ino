@@ -753,7 +753,7 @@ void drawInterfaceSkeleton() {
   tft.drawString("LoRa", 624, 10);
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.setTextPadding(tft.textWidth("Battery:"));
-  tft.drawString("Battery", 624, 20);
+  tft.drawString("Battery O|I", 624, 20);
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
   tft.setTextPadding(tft.textWidth("Solar"));
   tft.drawString("Solar", 624, 30);
@@ -766,7 +766,7 @@ void drawInterfaceSkeleton() {
   tft.drawString("Block", 624, 60);
   //  tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.setTextPadding(tft.textWidth("Station Runtime"));
-  tft.drawString("Station runtime", 624, 80);
+  tft.drawString("Station runtime O|I", 624, 80);
 
   // Forecast & Outdoor & Indoor
   tft.loadFont(AA_FONT_SMALL, LittleFS);
@@ -808,7 +808,7 @@ float getESPTemp() {
 void debugMemoryTFT(int baseY, time_t local_time) {
   tft.loadFont(AA_FONT_10, LittleFS);
   tft.setTextDatum(TR_DATUM);
-
+  tft.setTextPadding(tft.textWidth("25/10 22:30 20.3k"));
   // =========================
   // HEAP
   // =========================
