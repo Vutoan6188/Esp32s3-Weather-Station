@@ -1396,11 +1396,17 @@ void drawWindSpeed() {
   tft.unloadFont();
 
   tft.loadFont(AA_FONT_SMALL, LittleFS);
-  tft.setTextPadding(tft.textWidth("888.8 max/h "));
-  tft.setTextColor(TFT_RED, TFT_BLACK);
 
-  snprintf(windBuf, sizeof(windBuf), "%.1f max/h", WindGust);
-  tft.drawString(windBuf, CENTER_X, CENTER_Y + 30);
+  snprintf(windBuf, sizeof(windBuf), "%.1f", WindGust);
+
+  int textWidth = tft.textWidth(windBuf) + tft.textWidth(" max/h");
+  int startX = CENTER_X - textWidth / 2;
+
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString(windBuf, startX, CENTER_Y + 30);
+
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  tft.drawString(" max/h", startX + tft.textWidth(windBuf), CENTER_Y + 30);
 
   tft.setTextPadding(0);
   tft.unloadFont();
@@ -1838,7 +1844,7 @@ void GraphWindRain() {
   tft.setTextPadding(tft.textWidth("8"));
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   tft.drawString("Wind & Rain", 0, 262);
-  tft.drawString("Speed", 95, 262);
+  tft.drawString("Gust/h", 95, 262);
   tft.fillRect(80, 254, 10, 3, TFT_RED);
   tft.drawString("Direct", 195, 262);
   tft.fillRect(180, 254, 10, 3, TFT_OLIVE);
@@ -2513,7 +2519,7 @@ void GraphWindRainSD() {
   tft.setTextPadding(tft.textWidth("8"));
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   tft.drawString("Wind & Rain", 0, 57);
-  tft.drawString("Speed", 95, 57);
+  tft.drawString("Gust/h", 95, 57);
   tft.fillRect(80, 49, 10, 3, TFT_RED);
   tft.drawString("Direct", 195, 57);
   tft.fillRect(180, 49, 10, 3, TFT_OLIVE);
