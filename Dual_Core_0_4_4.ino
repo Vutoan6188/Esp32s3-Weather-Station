@@ -19,6 +19,8 @@
 // chỉnh code đổi màu của các status như lora, wifi hay battery theo phần trăm để tiện theo dõi trên màn tft
 // khắc phục resetValue() lag bỏ qua mốc mỗi giờ
 // chỉnh lại mảng WindSpeed cho thấp xuống vì vùng này gió không tới 100km/h mà biểu đồ cũ làm graph tới 200 nên hiển thị hơi khó coi
+// tinh chỉnh hiển thị windGust. với số màu trắng chữ max/h màu đỏ cho dễ quan sát.
+// biểu đồ gió đổi chữ Speed thành Gust/h. đổi chữ rain thành mm/d
 
 #define AA_FONT_SMALL "fonts/NotoSansBold15"
 #define AA_FONT_LARGE "fonts/NotoSansBold36"
@@ -1848,7 +1850,7 @@ void GraphWindRain() {
   tft.fillRect(80, 254, 10, 3, TFT_RED);
   tft.drawString("Direct", 195, 262);
   tft.fillRect(180, 254, 10, 3, TFT_OLIVE);
-  tft.drawString("Rain", 295, 262);
+  tft.drawString("mm/d", 295, 262);
   tft.fillRect(280, 254, 10, 3, TFT_CYAN);
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   //  tft.drawString("0", 0, 337);
@@ -2523,7 +2525,7 @@ void GraphWindRainSD() {
   tft.fillRect(80, 49, 10, 3, TFT_RED);
   tft.drawString("Direct", 195, 57);
   tft.fillRect(180, 49, 10, 3, TFT_OLIVE);
-  tft.drawString("Rain", 295, 57);
+  tft.drawString("mm/d", 295, 57);
   tft.fillRect(280, 49, 10, 3, TFT_CYAN);
 
   tft.setTextDatum(BR_DATUM);
