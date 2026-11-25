@@ -30,7 +30,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.4.4"
+#define FIRMWARE_VERSION "0.4.3"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
@@ -1398,17 +1398,11 @@ void drawWindSpeed() {
   tft.unloadFont();
 
   tft.loadFont(AA_FONT_SMALL, LittleFS);
+  tft.setTextPadding(tft.textWidth("888.8 max/h"));
+//  tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
-  snprintf(windBuf, sizeof(windBuf), "%.1f", WindGust);
-
-  int textWidth = tft.textWidth(windBuf) + tft.textWidth(" max/h");
-  int startX = CENTER_X - textWidth / 2;
-
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString(windBuf, startX, CENTER_Y + 30);
-
-  tft.setTextColor(TFT_RED, TFT_BLACK);
-  tft.drawString(" max/h", startX + tft.textWidth(windBuf), CENTER_Y + 30);
+  snprintf(windBuf, sizeof(windBuf), "%.1f max/h", WindGust);
+  tft.drawString(windBuf, CENTER_X, CENTER_Y + 30);
 
   tft.setTextPadding(0);
   tft.unloadFont();
