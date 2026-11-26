@@ -30,7 +30,7 @@
 #define AA_FONT_30 "fonts/NotoSans-Bold30"
 #define AA_FONT_40 "fonts/NotoSans-Bold40"
 #define AA_FONT_70 "fonts/NotoSans-Bold70"
-#define FIRMWARE_VERSION "0.4.3"
+#define FIRMWARE_VERSION "0.4.4"
 
 /**                         Load the libraries and settings
 ***************************************************************************************/
@@ -380,7 +380,7 @@ void WeatherTask(void* pvParameters) {
       sendWindy();
       sendWU();
       SendPWSData = true;
-//      SendPWSDataDone = true;
+      //      SendPWSDataDone = true;
     }
     //if (s == 0)
     if (m % 6 != 0)
@@ -779,6 +779,11 @@ void drawInterfaceSkeleton() {
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString("km/h", CENTER_X, CENTER_Y + 50);
 
+//  tft.loadFont(AA_FONT_SMALL, LittleFS);
+  tft.setTextPadding(tft.textWidth(" max/h"));
+  tft.setTextColor(TFT_WHITE, TFT_RED);
+  tft.drawString("max/h", CENTER_X + 20, CENTER_Y + 29);
+
   tft.setTextPadding(0);
   tft.unloadFont();
 }
@@ -825,7 +830,7 @@ void debugMemoryTFT(int baseY, time_t local_time) {
              getHour(local_time),
              getMinute(local_time));
   }
-//41
+  //41
   int barHeap = map(
     constrain(freeHeap, 20000, 80000),
     20000, 80000, 0, 50);
@@ -849,7 +854,7 @@ void debugMemoryTFT(int baseY, time_t local_time) {
   } else {
     minHeapColor = TFT_RED;
   }
-//24
+  //24
   int barBlock = map(
     constrain(largestBlock, 12000, 34000),
     12000, 34000, 0, 50);
@@ -1398,11 +1403,12 @@ void drawWindSpeed() {
   tft.unloadFont();
 
   tft.loadFont(AA_FONT_SMALL, LittleFS);
-  tft.setTextPadding(tft.textWidth("888.8 max/h"));
-//  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextDatum(MR_DATUM);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextPadding(tft.textWidth("888.8"));
 
-  snprintf(windBuf, sizeof(windBuf), "%.1f max/h", WindGust);
-  tft.drawString(windBuf, CENTER_X, CENTER_Y + 30);
+  snprintf(windBuf, sizeof(windBuf), "%.1f", WindGust);
+  tft.drawString(windBuf, CENTER_X - 10, CENTER_Y + 30);
 
   tft.setTextPadding(0);
   tft.unloadFont();
@@ -2033,8 +2039,8 @@ void sendWindy() {
     HumiOutDoor,
     Pressurecal,
 
-    (WindSpeed / 3.6f),   // km/h -> m/s
-    (WindGust / 3.6f),  // km/h -> m/s
+    (WindSpeed / 3.6f),  // km/h -> m/s
+    (WindGust / 3.6f),   // km/h -> m/s
 
     WindDirect,
 
