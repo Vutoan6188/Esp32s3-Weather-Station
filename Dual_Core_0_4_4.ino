@@ -1846,7 +1846,7 @@ void GraphWindRain() {
   tft.setTextPadding(tft.textWidth("8"));
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   tft.drawString("Wind & Rain", 0, 262);
-  tft.drawString("Gust/h", 95, 262);
+  tft.drawString("max/h", 95, 262);
   tft.fillRect(80, 254, 10, 3, TFT_RED);
   tft.drawString("Direct", 195, 262);
   tft.fillRect(180, 254, 10, 3, TFT_OLIVE);
@@ -2521,7 +2521,7 @@ void GraphWindRainSD() {
   tft.setTextPadding(tft.textWidth("8"));
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
   tft.drawString("Wind & Rain", 0, 57);
-  tft.drawString("Gust/h", 95, 57);
+  tft.drawString("max/h", 95, 57);
   tft.fillRect(80, 49, 10, 3, TFT_RED);
   tft.drawString("Direct", 195, 57);
   tft.fillRect(180, 49, 10, 3, TFT_OLIVE);
